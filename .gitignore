@@ -1,0 +1,10 @@
+/bin/
+/.go/
+web/node_modules/
+web/dist/
+web/.npm/
+*.out
+coverage/
+.env
+.DS_Store
+/.kube/

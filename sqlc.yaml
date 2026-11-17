@@ -1,0 +1,33 @@
+version: "2"
+sql:
+  - engine: postgresql
+    # golang-migrate 형식. sqlc는 .down.sql 파일을 읽지 않는다.
+    schema: migrations
+    queries: internal/ledger/queries
+    gen:
+      go:
+        package: ledger
+        out: internal/ledger
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        initialisms: [id, uid, uuid, gpu, mig, gi, mb, xid]
+        rename:
+          seen_uuids: SeenUUIDs
+          seen_ids: SeenIDs
+        overrides:
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: uuid
+            nullable: true
+            go_type:
+              import: github.com/google/uuid
+              type: UUID
+              pointer: true
+          - db_type: timestamptz
+            go_type: time.Time
+          - db_type: timestamptz
+            nullable: true
+            go_type:
+              import: time
+              type: Time
+              pointer: true

@@ -1,0 +1,96 @@
+stages:
+  - lint
+  - test
+  - build
+
+variables:
+  GO_IMAGE: golang:1.26
+  NODE_IMAGE: node:26
+  GOLANGCI_LINT_IMAGE: golangci/golangci-lint:v2.15.0
+  DIND_IMAGE: docker:29-dind
+
+.go:
+  image: $GO_IMAGE
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  cache:
+    key: go-mod
+    paths:
+      - .go/pkg/mod/
+
+.web:
+  image: $NODE_IMAGE
+  cache:
+    key:
+      files:
+        - web/package-lock.json
+    paths:
+      - web/.npm/
+  before_script:
+    - cd web
+    - npm ci --cache .npm --prefer-offline
+
+go-lint:
+  stage: lint
+  extends: .go
+  image: $GOLANGCI_LINT_IMAGE
+  script:
+    - golangci-lint run ./cmd/... ./internal/... ./migrations/...
+
+# SQL과 생성된 쿼리 코드(internal/ledger)가 맞는지 확인한다.
+go-gen-check:
+  stage: lint
+  extends: .go
+  script:
+    - make gen-check
+
+web-lint:
+  stage: lint
+  extends: .web
+  script:
+    - npm run lint
+    - npm run format:check
+    # API 명세와 생성된 화면 타입(src/api/schema.d.ts)이 맞는지 확인한다.
+    - npm run gen:api:check
+
+# 장부 테스트는 testcontainers로 PostgreSQL 컨테이너를 띄운다. Runner에 privileged 권한이 필요하다.
+go-test:
+  stage: test
+  extends: .go
+  services:
+    - name: $DIND_IMAGE
+      alias: docker
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - go vet ./cmd/... ./internal/... ./migrations/...
+    - go test ./cmd/... ./internal/... ./migrations/...
+
+web-test:
+  stage: test
+  extends: .web
+  script:
+    - npm test
+
+go-build:
+  stage: build
+  extends: .go
+  script:
+    - go build -o bin/collector ./cmd/collector
+    - go build -o bin/api ./cmd/api
+  artifacts:
+    paths:
+      - bin/
+    expire_in: 1 week
+
+web-build:
+  stage: build
+  extends: .web
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - web/dist/
+    expire_in: 1 week
