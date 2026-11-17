@@ -1,7 +1,8 @@
 # 화면 이미지. web/를 컨텍스트로 빌드한다.
 #   docker build -t gpu-pool/web:dev web
 # nginx가 정적 파일을 내주고, /api와 /healthz는 서버2(API_UPSTREAM)로 넘긴다. 개발 서버의 vite proxy와 같은 규칙이다.
-FROM node:26-alpine AS build
+# 정적 파일은 아키텍처와 상관없으니 빌드 단계는 빌드하는 쪽 아키텍처로 돌린다 (--platform linux/amd64여도 에뮬레이션 없음).
+FROM --platform=$BUILDPLATFORM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
