@@ -44,6 +44,13 @@ go-gen-check:
   script:
     - make gen-check
 
+# 배포 매니페스트(deploy/) 세 overlay가 렌더링되는지 확인한다.
+kustomize-check:
+  stage: lint
+  extends: .go
+  script:
+    - make kustomize-build
+
 web-lint:
   stage: lint
   extends: .web
@@ -94,3 +101,22 @@ web-build:
     paths:
       - web/dist/
     expire_in: 1 week
+
+# 컨테이너 이미지 3개를 빌드한다 (푸시는 하지 않는다). Artifact Registry에 올리는 인증 방식은 아직 정하지 않았다.
+image-build:
+  stage: build
+  image: docker:29
+  services:
+    - name: $DIND_IMAGE
+      alias: docker
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker build -f cmd/collector/Dockerfile -t gpu-pool/collector:$CI_COMMIT_SHORT_SHA .
+    - docker build -f cmd/api/Dockerfile -t gpu-pool/api:$CI_COMMIT_SHORT_SHA .
+    - docker build -t gpu-pool/web:$CI_COMMIT_SHORT_SHA web
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
