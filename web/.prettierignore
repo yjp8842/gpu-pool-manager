@@ -1,0 +1,4 @@
+dist
+node_modules
+# openapi-typescript가 만든 파일
+src/api/schema.d.ts

@@ -1,0 +1,123 @@
+/* 목업(GPU Pool 화면 목업)의 공통 스타일을 옮긴 것이다. */
+
+.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  box-sizing: border-box;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.strong {
+  font-weight: 500;
+}
+
+/* 표 */
+.tblbox {
+  overflow-x: auto;
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tbl th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.tbl td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--row);
+  white-space: nowrap;
+}
+
+.tbl tr:last-child td {
+  border-bottom: 0;
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+}
+
+/* 상태 표시 */
+.pill {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.green {
+  background: #dcfce7;
+  color: #166534;
+}
+.red {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.yellow {
+  background: #fef3c7;
+  color: #92400e;
+}
+.grey {
+  background: #f3f4f6;
+  color: #374151;
+}
+.indigo {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+.blue {
+  background: #dbeafe;
+  color: #1e40af;
+}

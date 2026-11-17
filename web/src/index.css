@@ -1,0 +1,16 @@
+:root {
+  --accent: #2563eb;
+  --bad: #7f1d1d;
+  --text: #111827;
+  --muted: #4b5563;
+  --border: #e3e6eb;
+  --row: #eef0f3;
+  --page: #f5f6f8;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font-family: 'Inter', 'Noto Sans KR', system-ui, sans-serif;
+}
