@@ -15,7 +15,8 @@ GRIM-GPU 과제의 GPU Pool Manager 데모 구현이다. GPU·MIG 분할 정보�
 | `migrations/` | 장부 테이블 SQL 마이그레이션 (golang-migrate 형식, 실행 파일에 포함) |
 | `internal/ledger/queries/` | 장부 SQL 쿼리. `make gen`으로 `internal/ledger`의 Go 코드를 만든다 (sqlc) |
 | `web/` | React + TypeScript (Vite) 화면 |
-| `deploy/` | Kustomize base와 환경별 overlay (local, gcp-dev, gcp-demo) |
+| `cmd/*/Dockerfile`, `web/Dockerfile` | 컨테이너 이미지. 서버1·서버2는 distroless, 화면은 nginx(`web/nginx/`)가 정적 파일을 내주고 `/api`를 서버2로 넘긴다 |
+| `deploy/` | Kustomize `base`(서버1·서버2·화면·PostgreSQL·RBAC), `components/dcgm-exporter`(GKE GPU 노드용), `overlays/`(local, gcp-dev, gcp-demo) |
 | `test/e2e/` | 데모 시나리오 자동 확인 |
 | `test/kind/` | kind에서 3단계를 확인할 때 쓰는 예시 GPU Pod |
 
@@ -101,6 +102,102 @@ docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin
 다 쓰면 `make kind-down`으로 지운다.
 
 서버2는 `:8080`, 서버1은 `:8081`에서 뜨고, 둘 다 `GET /healthz`로 상태를 확인할 수 있다. 화면 개발 서버는 `/api`와 `/healthz`를 서버2로 넘긴다.
+
+## 클러스터 배포 (8단계)
+
+`deploy/`의 Kustomize 매니페스트로 네임스페이스 `gpu-pool`에 서버1(`collector`), 서버2(`api`), 화면(`web`), PostgreSQL(`postgres`, 디스크 10Gi)을 띄운다. 서버1은 ServiceAccount `collector`로 Node·Pod를 읽는다(ClusterRole은 get/list/watch뿐). 화면과 API는 외부 IP를 열지 않고 `kubectl port-forward`로 접속한다. DB 계정은 데모용 값이 `deploy/base/kustomization.yaml`에 있다.
+
+### 로컬 kind에서 확인
+
+GPU가 없으므로 `local` overlay는 목업 메트릭을 쓰고 dcgm-exporter를 넣지 않는다. 이미지는 로컬에서 빌드해 kind 노드에 넣는다.
+
+```bash
+make docker-build
+```
+
+```bash
+make kind-load
+```
+
+```bash
+make deploy-local
+```
+
+Mac에 kubectl이 없으므로 확인은 kind 노드 안의 kubectl로 한다. 화면 컨테이너의 nginx가 `/api`를 서버2로 넘기는지 보려면 web Pod에서 요청한다.
+
+```bash
+docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin.conf -n gpu-pool get pods
+```
+
+```bash
+docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin.conf -n gpu-pool exec deploy/web -- curl -s localhost:8080/api/v1/capacity
+```
+
+지우려면 `make undeploy-local`을 쓴다. 2026-11-17에 이 절차로 Pod 4개가 뜨고 예약 API까지 응답하는 것을 확인했다.
+
+### GKE에 배포
+
+GCP 프로젝트 `GCP_PROJECT_ID`, 서울 `asia-northeast3-b`, GKE Standard 기준이다. gcloud 명령은 로그인한 사용자가 직접 실행한다.
+
+이미지 저장소를 만들고 Docker 인증을 연결한다(처음 한 번).
+
+```bash
+gcloud artifacts repositories create gpu-pool --repository-format=docker --location=asia-northeast3
+```
+
+```bash
+gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+```
+
+GKE 노드는 amd64라 Apple Silicon에서는 `IMAGE_PLATFORM`을 준다. `IMAGE_PREFIX`는 `deploy/overlays/gcp-*/kustomization.yaml`의 `newName`과 같아야 한다.
+
+```bash
+make docker-build docker-push IMAGE_PREFIX=asia-northeast3-docker.pkg.dev/GCP_PROJECT_ID/gpu-pool IMAGE_PLATFORM=linux/amd64
+```
+
+클러스터(일반 노드 풀 1대)와 A100 MIG 노드 풀(1대, `1g.5gb` × 7)을 만든다. A100 노드는 켜져 있는 동안 비용이 나간다.
+
+```bash
+gcloud container clusters create gpu-pool --zone asia-northeast3-b --release-channel regular --machine-type e2-standard-4 --num-nodes 1
+```
+
+```bash
+gcloud container node-pools create a100-mig --cluster gpu-pool --zone asia-northeast3-b --machine-type a2-highgpu-1g --accelerator type=nvidia-tesla-a100,count=1,gpu-partition-size=1g.5gb,gpu-driver-version=default --num-nodes 1
+```
+
+```bash
+gcloud container clusters get-credentials gpu-pool --zone asia-northeast3-b
+```
+
+배포하고 상태를 본다.
+
+```bash
+make deploy-gcp-dev
+```
+
+```bash
+kubectl -n gpu-pool get pods -o wide
+```
+
+dcgm-exporter가 GPU 노드에 떴으면 `/metrics`를 직접 받아 설계서 4장의 확인을 한다. 빈 조각(`GPU_I_ID`)이 나오는지, GPU Pod를 띄운 뒤 그 조각에 `pod` 라벨이 채워지는지, `Hostname` 라벨이 노드 이름인지 본다.
+
+```bash
+kubectl -n gpu-pool port-forward ds/dcgm-exporter 9400:9400
+```
+
+화면은 port-forward로 연다. `/api`는 nginx가 서버2로 넘긴다.
+
+```bash
+kubectl -n gpu-pool port-forward svc/web 8080:80
+```
+
+다 쓰면 GPU 노드 풀을 0대로 줄인다. 다시 쓸 때 1대로 올린다.
+
+```bash
+gcloud container node-pools resize a100-mig --cluster gpu-pool --zone asia-northeast3-b --num-nodes 0
+```
+
+dcgm-exporter(`deploy/components/dcgm-exporter/`)는 GKE가 설치한 드라이버(`/home/kubernetes/bin/nvidia`)를 붙이고, kubelet pod-resources로 조각을 쓰는 Pod를 알아낸다(`DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name`). 수집 목록 `counters.csv`에는 기본 목록에 없는 `DCGM_FI_DEV_MIG_MODE`를 넣었다. exporter가 이 항목을 거부하면 줄을 빼고, 서버1은 조각 유무로 MIG 켜짐을 판단한다. GPU 노드가 한 대라 서버1은 Service 이름(`dcgm-exporter:9400`)으로 읽는다. 노드가 늘면 Pod 목록에서 주소를 찾는 방식으로 바꿔야 한다.
 
 ## 환경 변수
 
@@ -210,7 +307,7 @@ curl -s -X POST localhost:8080/api/v1/reservations -H 'Content-Type: application
 | 5 | 서버2 예약·이력 | 완료 |
 | 6 | 웹 화면 | 완료 |
 | 7 | 실장비 연동 (GKE a2-highgpu-1g, A100) | 진행 중: DCGM 수집기 완료, 실장비 확인 남음 |
-| 8 | 클러스터 배포 | 예정 |
+| 8 | 클러스터 배포 | 진행 중: Dockerfile·Kustomize 완료, kind에서 확인. GKE 배포 남음 |
 | 9 | 데모 리허설 (GKE a2-highgpu-1g, A100) | 예정 |
 
 ## 저장소 운영
