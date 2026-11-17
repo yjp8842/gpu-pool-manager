@@ -1,0 +1,10 @@
+# Go 이미지(cmd/*/Dockerfile)는 레포 루트를 컨텍스트로 빌드한다. 화면은 web/Dockerfile이 web/를 따로 빌드한다.
+.git
+.idea
+.vscode
+.kube
+bin
+web
+deploy
+test
+*.md
