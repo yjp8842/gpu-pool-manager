@@ -1,0 +1,17 @@
+# dcgm-exporter 수집 목록. 서버1(internal/metrics/dcgm)이 읽는 것과 화면·확인용 몇 개만 둔다.
+# 형식: DCGM 필드 이름, Prometheus 타입, 설명
+
+# 서버1이 읽는 값 (설계도 5장)
+DCGM_FI_DEV_FB_FREE,      gauge, Framebuffer memory free (in MiB).
+DCGM_FI_DEV_FB_USED,      gauge, Framebuffer memory used (in MiB).
+DCGM_FI_DEV_FB_RESERVED,  gauge, Framebuffer memory reserved (in MiB).
+DCGM_FI_DEV_XID_ERRORS,   gauge, Value of the last XID error encountered.
+# MIG 모드. 기본 목록에는 없다. exporter가 거부하면 이 줄을 빼고, 서버1은 조각 유무로 MIG 켜짐을 판단한다.
+DCGM_FI_DEV_MIG_MODE,     gauge, MIG mode (0 off, 1 on).
+
+# 확인·화면용
+DCGM_FI_DEV_GPU_UTIL,     gauge, GPU utilization (in %).
+DCGM_FI_DEV_MEM_COPY_UTIL, gauge, Memory utilization (in %).
+DCGM_FI_DEV_GPU_TEMP,     gauge, GPU temperature (in C).
+DCGM_FI_DEV_POWER_USAGE,  gauge, Power draw (in W).
+DCGM_FI_PROF_GR_ENGINE_ACTIVE, gauge, Ratio of time the graphics engine is active.

@@ -1,0 +1,96 @@
+# 서버1(수집 서비스). dcgm-exporter와 K8s API를 읽어 장부에 쓴다.
+# K8s API는 ServiceAccount collector로 읽는다. 필요한 권한은 Node·Pod의 get/list/watch뿐이다 (설계도 10장 11번).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: collector
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gpu-pool-collector
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gpu-pool-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gpu-pool-collector
+subjects:
+  - kind: ServiceAccount
+    name: collector
+    namespace: gpu-pool
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector
+  labels:
+    app: collector
+spec:
+  replicas: 1
+  # 수집은 한 곳에서만 돈다. 새 Pod가 뜨기 전에 옛 Pod를 내린다.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: collector
+  template:
+    metadata:
+      labels:
+        app: collector
+    spec:
+      serviceAccountName: collector
+      securityContext:
+        runAsNonRoot: true
+        # distroless nonroot 사용자. 이미지의 USER와 같다.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: collector
+          image: gpu-pool/collector
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HTTP_ADDR
+              value: ":8081"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-auth
+                  key: DATABASE_URL
+          envFrom:
+            - configMapRef:
+                name: gpu-pool-config
+          ports:
+            - name: http
+              containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi

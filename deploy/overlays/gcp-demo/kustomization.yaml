@@ -1,0 +1,22 @@
+# GCP 데모 리허설·데모 환경. 개발 환경과 같은 클러스터·노드 풀을 쓰고(A100 1장, 1g.5gb × 7), 이미지 태그만 demo다.
+# 데모용으로 고정한 이미지를 쓰기 위해 overlay를 따로 둔다. 구성 차이가 생기면 여기에 적는다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gpu-pool
+
+resources:
+  - ../../base
+
+components:
+  - ../../components/dcgm-exporter
+
+images:
+  - name: gpu-pool/collector
+    newName: asia-northeast3-docker.pkg.dev/GCP_PROJECT_ID/gpu-pool/collector
+    newTag: demo
+  - name: gpu-pool/api
+    newName: asia-northeast3-docker.pkg.dev/GCP_PROJECT_ID/gpu-pool/api
+    newTag: demo
+  - name: gpu-pool/web
+    newName: asia-northeast3-docker.pkg.dev/GCP_PROJECT_ID/gpu-pool/web
+    newTag: demo

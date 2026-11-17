@@ -1,0 +1,23 @@
+# 로컬 kind 클러스터. GPU가 없으므로 목업 메트릭을 쓰고 dcgm-exporter는 넣지 않는다.
+# 이미지는 로컬에서 빌드해 kind에 넣는다: make docker-build kind-load deploy-local
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gpu-pool
+
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: gpu-pool-config
+    behavior: merge
+    literals:
+      - METRIC_SOURCE=fake
+      - DCGM_ENDPOINTS=
+
+images:
+  - name: gpu-pool/collector
+    newTag: dev
+  - name: gpu-pool/api
+    newTag: dev
+  - name: gpu-pool/web
+    newTag: dev

@@ -1,0 +1,14 @@
+# GKE GPU 노드에 dcgm-exporter를 DaemonSet으로 띄운다 (설계도 5장 수집 출처, 7단계).
+# GPU가 없는 로컬(kind)에는 필요 없어 base가 아니라 컴포넌트로 두고, GCP overlay가 넣는다.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - daemonset.yaml
+  - service.yaml
+
+# 수집할 메트릭 목록. 기본 목록에 없는 DCGM_FI_DEV_MIG_MODE를 넣었다 (설계도 10장 7번).
+configMapGenerator:
+  - name: dcgm-exporter-counters
+    files:
+      - counters.csv

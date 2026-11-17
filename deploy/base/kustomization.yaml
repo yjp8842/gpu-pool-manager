@@ -1,0 +1,43 @@
+# 공통 매니페스트 (설계도 3장 구조). 환경별 차이는 overlays/에서 덮어쓴다.
+#   - 서버1(collector), 서버2(api), 화면(web), PostgreSQL을 네임스페이스 gpu-pool에 둔다.
+#   - 서버1은 ServiceAccount로 Node·Pod를 읽는다 (collector.yaml의 ClusterRole).
+#   - dcgm-exporter는 GPU 노드에만 필요해 components/dcgm-exporter로 분리했다. GCP overlay가 넣는다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gpu-pool
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - collector.yaml
+  - api.yaml
+  - web.yaml
+
+# 서버1·서버2의 환경 변수 (README "환경 변수"). overlay가 behavior: merge로 값을 바꾼다.
+configMapGenerator:
+  - name: gpu-pool-config
+    literals:
+      - METRIC_SOURCE=dcgm
+      - DCGM_ENDPOINTS=http://dcgm-exporter:9400/metrics
+      - K8S_WATCH=true
+      - SCRAPE_INTERVAL=15s
+      - RECONCILE_INTERVAL=5s
+      - RESERVATION_TTL=5m
+
+# 데모용 DB 계정. 데모 범위를 넘으면 overlay에서 behavior: replace로 바꾸거나 외부 Secret으로 옮긴다.
+secretGenerator:
+  - name: postgres-auth
+    literals:
+      - POSTGRES_USER=gpupool
+      - POSTGRES_PASSWORD=gpupool
+      - POSTGRES_DB=gpupool
+      - DATABASE_URL=postgres://gpupool:gpupool@postgres:5432/gpupool?sslmode=disable
+
+# 이미지 이름은 overlay가 저장소 주소와 태그로 바꾼다.
+images:
+  - name: gpu-pool/collector
+    newTag: dev
+  - name: gpu-pool/api
+    newTag: dev
+  - name: gpu-pool/web
+    newTag: dev
