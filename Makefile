@@ -23,6 +23,21 @@ KIND_NODE        := $(KIND_CLUSTER)-control-plane
 # kubectl을 따로 설치하지 않아도 되게 kind 노드 안의 kubectl을 쓴다.
 KUBECTL          ?= docker exec -i $(KIND_NODE) kubectl --kubeconfig=/etc/kubernetes/admin.conf
 
+# 컨테이너 이미지와 배포 (8단계). GKE용 이미지는 amd64여야 한다: make docker-build IMAGE_PLATFORM=linux/amd64
+KUSTOMIZE_VERSION := v5.8.2
+KUSTOMIZE         := $(GO) run sigs.k8s.io/kustomize/kustomize/v5@$(KUSTOMIZE_VERSION)
+IMAGE_PREFIX      ?= gpu-pool
+IMAGE_TAG         ?= dev
+IMAGE_PLATFORM    ?=
+DOCKER_BUILD      := docker build $(if $(IMAGE_PLATFORM),--platform $(IMAGE_PLATFORM),)
+IMAGES            := $(IMAGE_PREFIX)/collector:$(IMAGE_TAG) $(IMAGE_PREFIX)/api:$(IMAGE_TAG) $(IMAGE_PREFIX)/web:$(IMAGE_TAG)
+# GKE는 사용자의 kubectl을 쓴다 (gcloud container clusters get-credentials 뒤).
+GKE_KUBECTL       ?= kubectl
+# Artifact Registry 주소 (deploy/overlays/gcp-*/kustomization.yaml의 newName과 같아야 한다)
+GCP_PROJECT       ?= GCP_PROJECT_ID
+GCP_REGION        ?= asia-northeast3
+AR_PREFIX         := $(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/gpu-pool
+
 # 로컬 PostgreSQL (make db-up)
 DB_CONTAINER       := gpu-pool-postgres
 DB_IMAGE           := postgres:18-alpine
@@ -32,8 +47,9 @@ LOCAL_DATABASE_URL := postgres://gpupool:gpupool@localhost:5432/gpupool?sslmode=
 	go-build go-test go-test-short go-vet go-lint \
 	web-install web-build web-test web-lint \
 	db-up db-down db-migrate db-psql \
-	kind-up kind-fake-gpu kind-down \
-	run-collector run-collector-kind run-api run-web run-web-mock clean
+	kind-up kind-fake-gpu kind-down kind-load \
+	run-collector run-collector-kind run-api run-web run-web-mock \
+	docker-build docker-push kustomize-build deploy-local undeploy-local deploy-gcp-dev deploy-gcp-demo clean
 
 all: lint test build
 
@@ -137,6 +153,37 @@ run-web:
 # 서버2 없이 목업 API(MSW)로 화면만 띄운다.
 run-web-mock:
 	cd web && $(NPM) run dev:mock
+
+# ---- 컨테이너 이미지와 배포 (8단계) ----
+
+# 이미지 3개를 빌드한다. GKE용: make docker-build docker-push IMAGE_PREFIX=$(AR_PREFIX) IMAGE_PLATFORM=linux/amd64
+docker-build:
+	$(DOCKER_BUILD) -f cmd/collector/Dockerfile -t $(IMAGE_PREFIX)/collector:$(IMAGE_TAG) .
+	$(DOCKER_BUILD) -f cmd/api/Dockerfile -t $(IMAGE_PREFIX)/api:$(IMAGE_TAG) .
+	$(DOCKER_BUILD) -t $(IMAGE_PREFIX)/web:$(IMAGE_TAG) web
+
+docker-push:
+	for img in $(IMAGES); do docker push $$img || exit 1; done
+
+# 세 overlay가 렌더링되는지 확인한다 (CI에서도 돈다).
+kustomize-build:
+	@for o in local gcp-dev gcp-demo; do $(KUSTOMIZE) build deploy/overlays/$$o > /dev/null && echo "deploy/overlays/$$o: ok" || exit 1; done
+
+# 로컬 이미지를 kind 노드에 넣는다. 그 뒤 deploy-local.
+kind-load:
+	$(KIND) load docker-image --name $(KIND_CLUSTER) $(IMAGES)
+
+deploy-local:
+	$(KUSTOMIZE) build deploy/overlays/local | $(KUBECTL) apply -f -
+
+undeploy-local:
+	$(KUSTOMIZE) build deploy/overlays/local | $(KUBECTL) delete --ignore-not-found -f -
+
+deploy-gcp-dev:
+	$(KUSTOMIZE) build deploy/overlays/gcp-dev | $(GKE_KUBECTL) apply -f -
+
+deploy-gcp-demo:
+	$(KUSTOMIZE) build deploy/overlays/gcp-demo | $(GKE_KUBECTL) apply -f -
 
 clean:
 	rm -rf $(BIN) web/dist
