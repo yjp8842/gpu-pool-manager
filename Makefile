@@ -26,7 +26,7 @@ KIND_NODE        := $(KIND_CLUSTER)-control-plane
 # kubectl을 따로 설치하지 않아도 되게 kind 노드 안의 kubectl을 쓴다.
 KUBECTL          ?= docker exec -i $(KIND_NODE) kubectl --kubeconfig=/etc/kubernetes/admin.conf
 
-# 컨테이너 이미지와 배포 (8단계). GKE용 이미지는 amd64여야 한다: make docker-build IMAGE_PLATFORM=linux/amd64
+# 컨테이너 이미지와 배포. GKE용 이미지는 amd64여야 한다: make docker-build IMAGE_PLATFORM=linux/amd64
 KUSTOMIZE_VERSION := v5.8.2
 KUSTOMIZE         := $(GO) run sigs.k8s.io/kustomize/kustomize/v5@$(KUSTOMIZE_VERSION)
 # 렌더링 명령. Go 툴체인 내려받기가 느린 곳(Cloud Shell)에서는 KUSTOMIZE_BUILD="kubectl kustomize"로 바꿔 kubectl에 든 kustomize를 쓴다.
@@ -127,7 +127,7 @@ db-migrate:
 db-psql:
 	docker exec -it $(DB_CONTAINER) psql -U gpupool gpupool
 
-# kind 클러스터 (노드 1대). 3단계(K8s Node·Pod 수집) 확인용.
+# kind 클러스터 (노드 1대). K8s Node·Pod 수집 확인용.
 kind-up:
 	mkdir -p $(dir $(KIND_KUBECONFIG))
 	$(KIND) create cluster --name $(KIND_CLUSTER) --kubeconfig $(KIND_KUBECONFIG)
@@ -161,7 +161,7 @@ run-web:
 run-web-mock:
 	cd web && $(NPM) run dev:mock
 
-# ---- 컨테이너 이미지와 배포 (8단계) ----
+# ---- 컨테이너 이미지와 배포 ----
 
 # 이미지 3개를 빌드한다. GKE용은 docker-build-gcp를 쓴다.
 docker-build:

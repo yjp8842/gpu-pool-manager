@@ -1,4 +1,4 @@
-# 공통 매니페스트 (설계도 3장 구조). 환경별 차이는 overlays/에서 덮어쓴다.
+# 공통 매니페스트. 환경별 차이는 overlays/에서 덮어쓴다.
 #   - 서버1(collector), 서버2(api), 화면(web), PostgreSQL을 네임스페이스 gpu-pool에 둔다.
 #   - 서버1은 ServiceAccount로 Node·Pod를 읽는다 (collector.yaml의 ClusterRole).
 #   - dcgm-exporter는 GPU 노드에만 필요해 components/dcgm-exporter로 분리했다. GCP overlay가 넣는다.

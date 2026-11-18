@@ -1,10 +1,10 @@
-// Package allocation은 남은 수량 계산, 예약·취소, 정합 작업(확정·반납·만료·관측 할당)을 맡는다 (개발 단계 5).
+// Package allocation은 남은 수량 계산, 예약·취소, 정합 작업(확정·반납·만료·관측 할당)을 맡는다.
 //
 // allocation 테이블을 쓰는 곳은 이 패키지 하나다. 예약과 관측 할당은 출처(source)로 구분하고,
 // 상태가 바뀔 때마다 같은 트랜잭션에서 이력을 남긴다.
 //
 // 예약은 노드 + 프로파일 단위다. 어느 조각을 쓸지는 kubelet이 고르므로, 실제 조각은 대상 Pod가
-// 그 노드의 같은 프로파일 조각에서 관측될 때 정합 작업(Reconcile)이 묶는다 (설계도 7장).
+// 그 노드의 같은 프로파일 조각에서 관측될 때 정합 작업(Reconcile)이 묶는다.
 package allocation
 
 import (
@@ -216,7 +216,7 @@ func instanceOf(ctx context.Context, q *ledger.Queries, id *int64) (*history.Ins
 }
 
 // ShortReservations는 "용량 부족"인 확정 전 예약 ID를 돌려준다. 관측 할당이 늘어 빈 조각이 예약 수보다
-// 적어지면, 노드 + 프로파일마다 가장 늦게 만든 예약부터 차례가 오지 않는다 (설계도 7장).
+// 적어지면, 노드 + 프로파일마다 가장 늦게 만든 예약부터 차례가 오지 않는다.
 func (s *Service) ShortReservations(ctx context.Context) (map[uuid.UUID]bool, error) {
 	reserved, err := s.store.ListReservedAllocations(ctx)
 	if err != nil {

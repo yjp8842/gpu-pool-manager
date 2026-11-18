@@ -1,4 +1,4 @@
-// Package ledger는 장부 테이블 접근과 트랜잭션을 담당한다 (개발 단계 1).
+// Package ledger는 장부 테이블 접근과 트랜잭션을 담당한다.
 //
 // 테이블은 migrations/의 SQL로 만들고, 쿼리 코드(*.sql.go, models.go, db.go)는
 // queries/의 SQL에서 sqlc로 생성한다. 쿼리를 바꾸면 make gen으로 다시 생성한다.

@@ -58,7 +58,6 @@ func run(logger *slog.Logger) error {
 	)
 
 	// 마이그레이션은 시작할 때 적용한다. 이미 최신이면 아무것도 하지 않는다.
-	// 클러스터에서 별도 Job으로 돌릴지는 8단계에서 정한다.
 	if err := ledger.Migrate(cfg.DatabaseURL); err != nil {
 		return err
 	}

@@ -1,5 +1,5 @@
 # 서버1(수집 서비스). dcgm-exporter와 K8s API를 읽어 장부에 쓴다.
-# K8s API는 ServiceAccount collector로 읽는다. 필요한 권한은 Node·Pod의 get/list/watch뿐이다 (설계도 10장 11번).
+# K8s API는 ServiceAccount collector로 읽는다. 필요한 권한은 Node·Pod의 get/list/watch뿐이다.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

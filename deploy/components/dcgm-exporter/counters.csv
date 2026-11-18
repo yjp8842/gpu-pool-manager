@@ -1,7 +1,7 @@
 # dcgm-exporter 수집 목록. 서버1(internal/metrics/dcgm)이 읽는 것과 화면·확인용 몇 개만 둔다.
 # 형식: DCGM 필드 이름, Prometheus 타입, 설명
 
-# 서버1이 읽는 값 (설계도 5장)
+# 서버1이 읽는 값
 DCGM_FI_DEV_FB_FREE,      gauge, Framebuffer memory free (in MiB).
 DCGM_FI_DEV_FB_USED,      gauge, Framebuffer memory used (in MiB).
 DCGM_FI_DEV_FB_RESERVED,  gauge, Framebuffer memory reserved (in MiB).

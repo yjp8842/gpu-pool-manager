@@ -1,4 +1,4 @@
-// Package fake는 GPU 없이 개발·테스트할 때 쓰는 metrics.MetricSource 구현이다 (개발 단계 2).
+// Package fake는 GPU 없이 개발·테스트할 때 쓰는 metrics.MetricSource 구현이다.
 //
 // Source는 정해 둔 스냅샷을 그대로 돌려준다. 테스트는 Set과 SetError로 회차마다 값을 바꿔
 // 추가·변경·사라짐·재분할·수집 실패를 만든다. 로컬 실행(METRIC_SOURCE=fake)은 Demo를 쓴다.
@@ -121,7 +121,7 @@ func profileMemoryMB(profile string) int {
 	return gb * 1024
 }
 
-// Demo는 로컬 실행용 스냅샷이다. 설계도의 데모 구성을 흉내 낸다: GKE MIG 노드 풀의 노드 한 대
+// Demo는 로컬 실행용 스냅샷이다. 데모 구성을 흉내 낸다: GKE MIG 노드 풀의 노드 한 대
 // (a2-highgpu-1g, A100 40GB 1장)를 1g.5gb × 7로 나누고, 조각 두 개를 Pod가 쓴다.
 func Demo() []metrics.Snapshot {
 	const node, a100 = "fake-a100-mig", "NVIDIA A100-SXM4-40GB"

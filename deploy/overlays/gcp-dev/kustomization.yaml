@@ -1,4 +1,4 @@
-# GCP 개발 환경: GKE Standard 클러스터(asia-northeast3-b) + A100 MIG 노드 풀 한 대 (설계도 2장).
+# GCP 개발 환경: GKE Standard 클러스터(asia-northeast3-b) + A100 MIG 노드 풀 한 대.
 # 이미지는 Artifact Registry 저장소 gpu-pool에서 받는다. 저장소와 클러스터 만드는 명령은 README "GKE 배포"에 있다.
 # newName의 GCP_PROJECT_ID는 자리표시자다. 프로젝트 ID는 레포에 적지 않고, make deploy-gcp-dev가 .env의 GCP_PROJECT로 바꿔 적용한다.
 apiVersion: kustomize.config.k8s.io/v1beta1

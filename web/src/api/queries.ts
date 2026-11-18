@@ -1,4 +1,4 @@
-// 화면이 쓰는 조회. 모두 30초마다 다시 불러온다 (설계도 8장).
+// 화면이 쓰는 조회. 모두 30초마다 다시 불러온다.
 import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from './client';
 

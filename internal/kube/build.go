@@ -1,4 +1,4 @@
-// Package kube는 K8s API에서 노드와 GPU Pod 상태를 읽는다 (개발 단계 3).
+// Package kube는 K8s API에서 노드와 GPU Pod 상태를 읽는다.
 //
 // Build는 K8s 객체 목록을 장부에 넣을 형태(Snapshot)로 바꾸는 순수 함수이고,
 // Watcher는 informer로 객체를 계속 받아 두었다가 Snapshot을 만든다.

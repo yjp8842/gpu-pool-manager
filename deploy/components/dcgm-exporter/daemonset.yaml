@@ -3,7 +3,7 @@
 #   - 조각을 쓰는 Pod를 알려면 kubelet pod-resources 소켓을 붙이고 DCGM_EXPORTER_KUBERNETES=true로 켠다.
 #     GKE의 장치 ID(nvidia0/gi1 꼴)를 맞추려면 DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name이어야 한다.
 #   - nvidia.com/gpu를 요청하지 않는다. 요청하면 MIG 조각 하나를 차지한다.
-#   - 실장비에서 /metrics에 빈 조각과 pod 라벨이 나오는지 확인한다 (설계도 4장).
+#   - 실장비에서 /metrics에 빈 조각과 pod 라벨이 나오는지 확인한다.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

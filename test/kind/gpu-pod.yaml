@@ -1,4 +1,4 @@
-# 3단계 확인용 GPU Pod. kind 노드에는 GPU가 없으므로 make kind-fake-gpu로 등록한 임시 자원을 요청한다.
+# Node·Pod 수집 확인용 GPU Pod. kind 노드에는 GPU가 없으므로 make kind-fake-gpu로 등록한 임시 자원을 요청한다.
 # GKE MIG 노드 풀과 같은 모양: nvidia.com/gpu 1개를 요청하고, 조각 크기는 노드 라벨로 고른다.
 apiVersion: v1
 kind: Pod

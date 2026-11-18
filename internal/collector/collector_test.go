@@ -133,7 +133,7 @@ func TestFirstRoundAddsEverything(t *testing.T) {
 		t.Fatalf("stats = %+v, want 1 node, 1 GPU, 7 instances, nothing missed", st)
 	}
 
-	// DCGM에서 먼저 보인 노드는 이름만 들어간다 (K8s 값은 3단계에서 채운다).
+	// DCGM에서 먼저 보인 노드는 이름만 들어간다 (K8s 값은 kube 패키지의 watch가 채운다).
 	n, err := e.store.GetNode(t.Context(), "fake-a100-mig")
 	if err != nil {
 		t.Fatal(err)

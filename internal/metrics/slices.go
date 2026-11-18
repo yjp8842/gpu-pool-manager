@@ -2,7 +2,7 @@ package metrics
 
 import "strings"
 
-// 모델별 MIG 최대 조각 수. DCGM은 이 값을 주지 않아 고정표로 둔다 (설계도 6장).
+// 모델별 MIG 최대 조각 수. DCGM은 이 값을 주지 않아 고정표로 둔다.
 // DCGM의 modelName 라벨에 아래 이름이 들어 있으면 그 값을 쓴다. 위에서부터 먼저 맞는 것을 쓴다.
 var sliceTable = []struct {
 	model  string

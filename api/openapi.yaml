@@ -3,7 +3,7 @@ info:
   title: GRIM GPU Pool API
   description: |
     서버2(조회·예약 서비스) API 명세. Go 서버 코드(oapi-codegen)와 화면 타입(openapi-typescript)의 생성 원본이다.
-    조회 API는 개발 단계 4, 예약 API는 단계 5에서 만들었다. 대상 워크로드는 Pod만 다룬다.
+    대상 워크로드는 Pod만 다룬다.
 
     - 목록 응답은 모두 `{ "items": [...] }` 형태다.
     - 상태 값은 장부와 같은 대문자 값이다 (예: `FREE`, `ALLOCATED`).

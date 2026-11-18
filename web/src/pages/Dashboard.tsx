@@ -18,7 +18,7 @@ import { formatTime } from '../lib/format';
 import { summarize } from '../lib/summary';
 import styles from './Dashboard.module.css';
 
-/** 화면 한 장 (설계도 8장). 보기 전용이고 30초마다 새로 불러온다. */
+/** 화면 한 장. 보기 전용이고 30초마다 새로 불러온다. */
 export function Dashboard({ sample = false }: { sample?: boolean }) {
   const queryClient = useQueryClient();
   const nodes = useNodes();

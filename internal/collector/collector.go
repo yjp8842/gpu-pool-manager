@@ -1,4 +1,4 @@
-// Package collector는 서버1의 수집 작업이다 (개발 단계 2).
+// Package collector는 서버1의 수집 작업이다.
 //
 // 회차마다 MetricSource에서 노드별 스냅샷을 받아 장부와 비교하고 관측 값만 반영한다.
 // 할당 상태(allocation)는 바꾸지 않는다. 그것은 서버2의 정합 작업이 한다.
@@ -21,7 +21,7 @@ import (
 	"github.com/yjp8842/gpu-pool-manager/internal/metrics"
 )
 
-// DefaultMissLimit는 카드·조각을 지우기까지의 연속 미관측 횟수다 (설계도 5장).
+// DefaultMissLimit는 카드·조각을 지우기까지의 연속 미관측 횟수다.
 const DefaultMissLimit = 3
 
 // Collector는 MetricSource의 스냅샷을 장부에 반영한다.
@@ -298,7 +298,6 @@ func instanceParams(snap metrics.Snapshot, in metrics.Instance) ledger.UpsertGPU
 
 // criticalXIDs는 GPU 리셋이 필요한 하드웨어 계열 XID다. 이 값이면 그 GPU의 조각을 비정상으로 본다.
 // 애플리케이션 오류로도 나는 XID(13, 31, 43 등)는 넣지 않는다.
-// 설계도 10장 11번(건강 상태 복구 기준)이 정해지기 전까지 쓰는 임시 기준이다.
 var criticalXIDs = map[int]bool{
 	48:  true, // DBE (double bit ECC) 오류
 	63:  true, // ECC 페이지 퇴역·행 재매핑 기록

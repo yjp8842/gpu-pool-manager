@@ -1,5 +1,5 @@
 # 손으로 만든 예시다. dcgm-exporter 4.8 형식, MIG를 켜지 않은 A100 2장 노드.
-# 수집 목록에 DCGM_FI_DEV_MIG_MODE를 넣었다(설계도 10장 7번). GPU 0은 XID 79, GPU 1은 llm-serve-0이 쓴다.
+# 수집 목록에 DCGM_FI_DEV_MIG_MODE를 넣었다. GPU 0은 XID 79, GPU 1은 llm-serve-0이 쓴다.
 # NVSwitch 줄은 GPU UUID가 없어 건너뛰어야 한다.
 # HELP DCGM_FI_DEV_MIG_MODE MIG mode.
 # TYPE DCGM_FI_DEV_MIG_MODE gauge

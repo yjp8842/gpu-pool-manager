@@ -1,4 +1,4 @@
-// 목업 API 응답 (화면 개발용). 설계도의 데모 구성을 흉내 낸다: GKE MIG 노드 풀의 노드 한 대
+// 목업 API 응답 (화면 개발용). 데모 구성을 흉내 낸다: GKE MIG 노드 풀의 노드 한 대
 // (a2-highgpu-1g, A100 1장)를 1g.5gb × 7로 나눈다. 카드·조각·예약만 손으로 적고, 노드 요약·남은 수량·워크로드가 쓰는 조각은 그것에서 계산해
 // 서버2 응답처럼 서로 맞게 만든다. 타입은 API 명세에서 생성한 것이라 명세와 모양이 다르면 컴파일되지 않는다.
 import type {
@@ -107,7 +107,7 @@ mig.instances = [
 export const gpus: GPU[] = [mig];
 const allInstances = gpus.flatMap((g) => g.instances);
 
-// GKE MIG 노드 풀 방식 (설계도 2장): 조각도 나누지 않은 GPU도 자원 이름은 nvidia.com/gpu이고,
+// GKE MIG 노드 풀 방식: 조각도 나누지 않은 GPU도 자원 이름은 nvidia.com/gpu이고,
 // 조각 크기는 노드 라벨로 고른다.
 const RESOURCE_NAME = 'nvidia.com/gpu';
 function nodeSelector(profile: string): Record<string, string> {

@@ -1,6 +1,6 @@
 -- name: ListNodeSummaries :many
 -- ListNodeSummaries는 노드마다 카드 수, 조각 수, 빈 조각 수를 함께 돌려준다 (서버2 조회 API).
--- 빈 조각: health = OK이고 그 조각을 가리키는 ALLOCATED 할당이 없음 (설계도 6장).
+-- 빈 조각: health = OK이고 그 조각을 가리키는 ALLOCATED 할당이 없음.
 SELECT
     sqlc.embed(node),
     (SELECT count(*)

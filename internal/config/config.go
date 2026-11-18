@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// 메트릭 출처. 설계도 5장: 로컬은 목업 메트릭, 실장비는 dcgm-exporter 직접 조회.
+// 메트릭 출처. 로컬은 목업 메트릭, 실장비는 dcgm-exporter 직접 조회.
 const (
 	MetricSourceFake = "fake"
 	MetricSourceDCGM = "dcgm"
@@ -27,7 +27,7 @@ type Config struct {
 	ReservationTTL    time.Duration // RESERVATION_TTL
 }
 
-// Defaults는 환경 변수가 없을 때 쓰는 값이다. 주기 값은 설계도의 설정값을 따른다.
+// Defaults는 환경 변수가 없을 때 쓰는 값이다.
 func Defaults() Config {
 	return Config{
 		HTTPAddr:          ":8080",

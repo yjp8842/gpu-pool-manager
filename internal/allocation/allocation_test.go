@@ -183,7 +183,7 @@ func TestReserveUntilNoCapacity(t *testing.T) {
 	}
 }
 
-// 완료 기준: 동시 예약 100건에서 남은 수량을 넘는 예약이 0건이다 (설계도 개발 단계 5).
+// 동시 예약 100건에서 남은 수량을 넘는 예약이 0건이어야 한다.
 func TestConcurrentReservationsNeverExceedCapacity(t *testing.T) {
 	const free, requests = 7, 100
 	e := newEnv(t, free)
@@ -349,7 +349,7 @@ func TestReconcileReleasesWhenInstanceDisappears(t *testing.T) {
 func TestReconcilePodOnAnotherProfileDoesNotBind(t *testing.T) {
 	e := newEnv(t, 1)
 	r := e.mustReserve("req-1", "train-1")
-	// 예약은 1g.23gb인데 train-1이 다른 프로파일 조각에서 보였다 (설계도 10장 12번).
+	// 예약은 1g.23gb인데 train-1이 다른 프로파일 조각에서 보였다.
 	if _, err := e.store.UpsertGPUInstance(t.Context(), ledger.UpsertGPUInstanceParams{
 		ParentUUID: gpu0, GIID: 3, Profile: "2g.45gb", Health: ledger.HealthOK,
 		ObservedPodNamespace: new("default"), ObservedPodName: new("train-1"), LastSeenAt: t0,

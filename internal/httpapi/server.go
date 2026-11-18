@@ -1,4 +1,4 @@
-// Package httpapi는 서버2의 HTTP API다 (조회는 개발 단계 4, 예약은 단계 5).
+// Package httpapi는 서버2의 HTTP API다.
 // 예약 처리 규칙은 allocation 패키지에 있고, 이 패키지는 요청·응답을 명세의 모양으로 바꾼다.
 //
 // api.gen.go는 api/openapi.yaml에서 oapi-codegen으로 만든 코드다(make gen). 이 파일의 Server가
@@ -153,7 +153,7 @@ func (s *Server) ListCapacity(ctx context.Context, req ListCapacityRequestObject
 	return ListCapacity200JSONResponse{Items: items}, nil
 }
 
-// GKE MIG 노드 풀에서 Pod가 조각을 받는 방식 (설계도 2장). 조각도 나누지 않은 GPU도 자원 이름은
+// GKE MIG 노드 풀에서 Pod가 조각을 받는 방식. 조각도 나누지 않은 GPU도 자원 이름은
 // nvidia.com/gpu 하나이고, 조각 크기는 GKE가 노드 풀에 붙이는 라벨로 고른다.
 const (
 	gpuResourceName       = "nvidia.com/gpu"

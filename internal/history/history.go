@@ -1,7 +1,7 @@
 // Package history는 이력(allocation_event)을 한 줄씩 추가한다. 호출한 쪽의 트랜잭션 안에서만 쓴다.
 //
-// 서버1의 collector가 구성 변경을 남기고(개발 단계 2), 서버2의 allocation 패키지가
-// 예약·할당·반납·만료·취소·거부를 남긴다(개발 단계 5). 이력은 고치거나 지우지 않는다.
+// 서버1의 collector가 구성 변경을 남기고, 서버2의 allocation 패키지가
+// 예약·할당·반납·만료·취소·거부를 남긴다. 이력은 고치거나 지우지 않는다.
 package history
 
 import (
