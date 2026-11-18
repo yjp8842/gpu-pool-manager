@@ -1,8 +1,6 @@
 # gpu-pool-manager
 
-GRIM-GPU 과제의 GPU Pool Manager 데모 구현이다. GPU·MIG 분할 정보를 DCGM 메트릭으로 수집해 장부에 쌓고(서버1), 요청이 오면 노드+프로파일 단위로 예약하고 이력을 남기며(서버2), 그 결과를 웹 화면으로 보여준다.
-
-설계 근거는 "GPU Pool 데모 개발 설계서" 문서의 본문 탭과 "개발 구현 계획" 탭이다. 대상 워크로드는 Pod만 다룬다 (2026-11-17 범위 결정).
+GPU Pool Manager는 Kubernetes 클러스터의 GPU·MIG 분할 정보를 DCGM 메트릭으로 수집해 장부에 쌓고(서버1), 요청이 오면 노드+프로파일 단위로 예약하고 이력을 남기며(서버2), 그 결과를 웹 화면으로 보여주는 데모 서비스다. 대상 워크로드는 Pod다.
 
 ## 구성
 
@@ -11,14 +9,14 @@ GRIM-GPU 과제의 GPU Pool Manager 데모 구현이다. GPU·MIG 분할 정보�
 | `cmd/collector` | 서버1 (수집 서비스) |
 | `cmd/api` | 서버2 (조회·예약 서비스) |
 | `internal/` | 두 서비스의 내부 패키지 (`config`, `serve`, `metrics`, `kube`, `collector`, `ledger`, `allocation`, `history`, `httpapi`). `testpg`는 DB 테스트 도우미다 |
-| `api/openapi.yaml` | 서버2 API 명세. Go 서버 코드(`make gen` → `internal/httpapi/api.gen.go`)와 화면 타입의 생성 원본 |
+| `api/openapi.yaml` | 서버2 API 명세. Go 서버 코드(`internal/httpapi/api.gen.go`)와 화면 타입(`web/src/api/schema.d.ts`)은 `make gen`으로 여기서 만든다 |
 | `migrations/` | 장부 테이블 SQL 마이그레이션 (golang-migrate 형식, 실행 파일에 포함) |
 | `internal/ledger/queries/` | 장부 SQL 쿼리. `make gen`으로 `internal/ledger`의 Go 코드를 만든다 (sqlc) |
 | `web/` | React + TypeScript (Vite) 화면 |
 | `cmd/*/Dockerfile`, `web/Dockerfile` | 컨테이너 이미지. 서버1·서버2는 distroless, 화면은 nginx(`web/nginx/`)가 정적 파일을 내주고 `/api`를 서버2로 넘긴다 |
 | `deploy/` | Kustomize `base`(서버1·서버2·화면·PostgreSQL·RBAC), `components/dcgm-exporter`(GKE GPU 노드용), `overlays/`(local, gcp-dev, gcp-demo) |
-| `test/e2e/` | 데모 시나리오 자동 확인 |
-| `test/kind/` | kind에서 3단계를 확인할 때 쓰는 예시 GPU Pod |
+| `test/kind/` | kind에서 Node·Pod 수집을 확인할 때 쓰는 예시 GPU Pod |
+| `test/gke/` | GKE MIG 노드에서 조각 하나를 받는 확인용 Pod |
 | `.env.example` | 로컬 전용 값(GCP 프로젝트 ID)의 본보기. `.env`로 복사해 채우며 `.env`는 git이 무시한다 |
 
 ## 필요한 도구
@@ -70,7 +68,7 @@ make run-web
 make run-web-mock
 ```
 
-서버1은 장부 DB가 필요하다. 먼저 로컬 PostgreSQL 컨테이너를 띄운다. 서버1은 시작할 때 마이그레이션을 적용하고, `METRIC_SOURCE=fake`면 데모 구성을 흉내 낸 목업 노드 한 대(`fake-a100-mig`, A100 1장을 1g.5gb × 7로 나눔)를 장부에 채운다. `make db-psql`로 테이블을 볼 수 있다.
+서버1은 장부 DB가 필요하다. 먼저 로컬 PostgreSQL 컨테이너를 띄운다. 서버1은 시작할 때 마이그레이션을 적용하고, `METRIC_SOURCE=fake`면 목업 노드 한 대(`fake-a100-mig`, A100 1장을 1g.5gb × 7로 나눔)를 장부에 채운다. `make db-psql`로 테이블을 볼 수 있다.
 
 ```bash
 make db-up
@@ -78,7 +76,7 @@ make db-up
 
 서버를 띄우지 않고 테이블만 만들려면 `make db-migrate`를 쓴다.
 
-### kind 클러스터에서 Node·Pod 수집 (3단계)
+### kind 클러스터에서 Node·Pod 수집
 
 kind와 kubectl은 따로 설치하지 않는다. kind는 Makefile이 고정 버전을 `go run`으로 쓰고, kubectl은 kind 노드 안의 것을 쓴다. kubeconfig는 `~/.kube/config`가 아니라 레포 안 `.kube/`에 만든다.
 
@@ -104,9 +102,9 @@ docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin
 
 서버2는 `:8080`, 서버1은 `:8081`에서 뜨고, 둘 다 `GET /healthz`로 상태를 확인할 수 있다. 화면 개발 서버는 `/api`와 `/healthz`를 서버2로 넘긴다.
 
-## 클러스터 배포 (8단계)
+## 클러스터 배포
 
-`deploy/`의 Kustomize 매니페스트로 네임스페이스 `gpu-pool`에 서버1(`collector`), 서버2(`api`), 화면(`web`), PostgreSQL(`postgres`, 디스크 10Gi)을 띄운다. 서버1은 ServiceAccount `collector`로 Node·Pod를 읽는다(ClusterRole은 get/list/watch뿐). 화면과 API는 외부 IP를 열지 않고 `kubectl port-forward`로 접속한다. DB 계정은 데모용 값이 `deploy/base/kustomization.yaml`에 있다.
+`deploy/`의 Kustomize 매니페스트로 네임스페이스 `gpu-pool`에 서버1(`collector`), 서버2(`api`), 화면(`web`), PostgreSQL(`postgres`, 디스크 10Gi)을 띄운다. 서버1은 ServiceAccount `collector`로 Node·Pod를 읽는다(ClusterRole은 get/list/watch뿐). 화면과 API는 외부 IP를 열지 않고 `kubectl port-forward`로 접속한다. DB 계정은 클러스터 안에서만 쓰는 데모용 값이고 `deploy/base/kustomization.yaml`에 있다.
 
 ### 로컬 kind에서 확인
 
@@ -124,7 +122,7 @@ make kind-load
 make deploy-local
 ```
 
-Mac에 kubectl이 없으므로 확인은 kind 노드 안의 kubectl로 한다. 화면 컨테이너의 nginx가 `/api`를 서버2로 넘기는지 보려면 web Pod에서 요청한다.
+kubectl을 따로 설치하지 않았다면 kind 노드 안의 kubectl로 확인한다. 화면 컨테이너의 nginx가 `/api`를 서버2로 넘기는지 보려면 web Pod에서 요청한다.
 
 ```bash
 docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin.conf -n gpu-pool get pods
@@ -134,11 +132,11 @@ docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin
 docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin.conf -n gpu-pool exec deploy/web -- curl -s localhost:8080/api/v1/capacity
 ```
 
-지우려면 `make undeploy-local`을 쓴다. 2026-11-17에 이 절차로 Pod 4개가 뜨고 예약 API까지 응답하는 것을 확인했다.
+지우려면 `make undeploy-local`을 쓴다.
 
 ### GKE에 배포
 
-서울 `asia-northeast3-b`, GKE Standard 기준이다. GCP 프로젝트 ID는 레포에 적지 않는다. `.env.example`을 `.env`로 복사해 `GCP_PROJECT`를 채우면 Makefile이 읽는다(`.env`는 git이 무시한다). gcloud 명령은 로그인한 사용자가 직접 실행한다.
+서울 `asia-northeast3-b`, GKE Standard 기준이다. GCP 프로젝트 ID는 레포에 적지 않는다. `.env.example`을 `.env`로 복사해 `GCP_PROJECT`를 채우면 Makefile이 읽는다(`.env`는 git이 무시한다). gcloud에 로그인되어 있어야 한다.
 
 이미지 저장소를 만들고 Docker 인증을 연결한다(처음 한 번).
 
@@ -150,7 +148,7 @@ gcloud artifacts repositories create gpu-pool --repository-format=docker --locat
 gcloud auth configure-docker asia-northeast3-docker.pkg.dev
 ```
 
-GKE 노드는 amd64라 `docker-build-gcp`는 `linux/amd64`로 빌드한다. 이미지 주소는 `asia-northeast3-docker.pkg.dev/<GCP_PROJECT>/gpu-pool`이다. `deploy/overlays/gcp-*/kustomization.yaml`의 `newName`에는 `GCP_PROJECT_ID` 자리표시자가 있고 `make deploy-gcp-*`가 `.env`의 값으로 바꿔 적용한다.
+GKE 노드는 amd64라 `docker-build-gcp`는 `linux/amd64`로 빌드한다. 이미지 주소는 `asia-northeast3-docker.pkg.dev/<GCP_PROJECT>/gpu-pool`이다. `deploy/overlays/gcp-*/kustomization.yaml`의 `newName`에는 `GCP_PROJECT_ID` 자리표시자가 있고 `make deploy-gcp-*`가 `.env`의 값(또는 `GCP_PROJECT=` make 인자)으로 바꿔 적용한다.
 
 ```bash
 make docker-build-gcp docker-push-gcp
@@ -176,14 +174,38 @@ gcloud container clusters get-credentials gpu-pool --zone asia-northeast3-b
 make deploy-gcp-dev
 ```
 
+콘솔 Cloud Shell에서 배포할 때는 레포를 받은 뒤 프로젝트 ID를 make 인자로 준다. Cloud Shell에는 kubectl이 있으므로 `KUSTOMIZE_BUILD`로 kubectl에 든 kustomize를 쓰면 Go 툴체인을 내려받지 않는다.
+
+```bash
+git clone https://github.com/yjp8842/gpu-pool-manager.git && cd gpu-pool-manager
+```
+
+```bash
+make deploy-gcp-dev GCP_PROJECT=<프로젝트 ID> KUSTOMIZE_BUILD="kubectl kustomize"
+```
+
 ```bash
 kubectl -n gpu-pool get pods -o wide
 ```
 
-dcgm-exporter가 GPU 노드에 떴으면 `/metrics`를 직접 받아 설계서 4장의 확인을 한다. 빈 조각(`GPU_I_ID`)이 나오는지, GPU Pod를 띄운 뒤 그 조각에 `pod` 라벨이 채워지는지, `Hostname` 라벨이 노드 이름인지 본다.
+dcgm-exporter가 GPU 노드에 떴으면 `/metrics`를 직접 받아 확인한다. 빈 조각(`GPU_I_ID`)이 나오는지, `Hostname` 라벨이 노드 이름인지 본다.
 
 ```bash
 kubectl -n gpu-pool port-forward ds/dcgm-exporter 9400:9400
+```
+
+```bash
+curl -s localhost:9400/metrics | grep -E 'DCGM_FI_DEV_FB_USED|DCGM_FI_DEV_MIG_MODE|XID' | head -20
+```
+
+조각 하나를 쓰는 확인용 Pod를 띄우면(`nvidia-smi -L`을 찍고 대기) 그 조각 줄에 `pod="mig-check"` 라벨이 붙어야 하고, 서버1이 관측해 화면에 "사용 중"으로 나와야 한다. 확인 뒤 지운다.
+
+```bash
+kubectl apply -f test/gke/mig-check-pod.yaml
+```
+
+```bash
+kubectl delete -f test/gke/mig-check-pod.yaml
 ```
 
 화면은 port-forward로 연다. `/api`는 nginx가 서버2로 넘긴다.
@@ -198,7 +220,7 @@ kubectl -n gpu-pool port-forward svc/web 8080:80
 gcloud container node-pools resize a100-mig --cluster gpu-pool --zone asia-northeast3-b --num-nodes 0
 ```
 
-dcgm-exporter(`deploy/components/dcgm-exporter/`)는 GKE가 설치한 드라이버(`/home/kubernetes/bin/nvidia`)를 붙이고, kubelet pod-resources로 조각을 쓰는 Pod를 알아낸다(`DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name`). 수집 목록 `counters.csv`에는 기본 목록에 없는 `DCGM_FI_DEV_MIG_MODE`를 넣었다. exporter가 이 항목을 거부하면 줄을 빼고, 서버1은 조각 유무로 MIG 켜짐을 판단한다. GPU 노드가 한 대라 서버1은 Service 이름(`dcgm-exporter:9400`)으로 읽는다. 노드가 늘면 Pod 목록에서 주소를 찾는 방식으로 바꿔야 한다.
+dcgm-exporter(`deploy/components/dcgm-exporter/`)는 GKE가 설치한 드라이버(`/home/kubernetes/bin/nvidia`)를 붙이고, kubelet pod-resources로 조각을 쓰는 Pod를 알아낸다(`DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name`). 수집 목록 `counters.csv`에는 기본 목록에 없는 `DCGM_FI_DEV_MIG_MODE`가 들어 있다. exporter가 이 항목을 거부하면 줄을 빼면 되고, 서버1은 조각 유무로 MIG 켜짐을 판단한다. 서버1은 Service 이름(`dcgm-exporter:9400`)으로 읽으므로 GPU 노드 한 대 구성에 맞는다.
 
 ## 환경 변수
 
@@ -236,8 +258,6 @@ dcgm-exporter(`deploy/components/dcgm-exporter/`)는 GKE가 설치한 드라이�
 curl -s localhost:8080/api/v1/capacity?node=fake-a100-mig
 ```
 
-응답이 명세와 맞는지는 `internal/httpapi` 테스트가 kin-openapi로 검사한다.
-
 ### 예약과 정합 작업
 
 예약은 특정 조각이 아니라 노드 + 프로파일 단위다. Pod는 개수만 요청하고 어느 조각을 쓸지는 kubelet이 고르기 때문이다.
@@ -258,10 +278,9 @@ curl -s -X POST localhost:8080/api/v1/reservations -H 'Content-Type: application
 
 ## 화면
 
-`web/`은 React + TypeScript(Vite)다. 한 페이지에 요약 → 노드 상태 → 카드별 MIG 분할 → GPU 사용 Pod → 예약 → 할당 이력 순서로 보여주고, 30초마다 서버2에서 다시 불러온다 (설계도 8장, 목업 구성).
+`web/`은 React + TypeScript(Vite)다. 한 페이지에 요약 → 노드 상태 → 카드별 MIG 분할 → GPU 사용 Pod → 예약 → 할당 이력 순서로 보여주고, 30초마다 서버2에서 다시 불러온다.
 
-- API 타입(`web/src/api/schema.d.ts`)은 `api/openapi.yaml`에서 openapi-typescript로 만든다. 명세를 바꾸면 `make gen`을 돌린다.
-- 목업 API는 `web/src/mocks/`에 있다. 화면 테스트와 `make run-web-mock`이 쓴다. 응답은 명세에서 만든 타입이라 명세와 모양이 다르면 컴파일되지 않는다.
+- 목업 API는 `web/src/mocks/`에 있다. 화면 테스트와 `make run-web-mock`이 쓴다.
 - 카드별 MIG 분할에서 칸 너비는 조각의 연산 슬라이스 수(`1g` → 1칸)에 비례하고, 전체 칸 수는 카드의 `totalSlices`(A100·B200 7, RTX PRO 6000 4)를 따른다.
 
 ## 서버1 수집
@@ -278,12 +297,11 @@ curl -s -X POST localhost:8080/api/v1/reservations -H 'Content-Type: application
   - dcgm-exporter 4.8까지의 이름(`DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_XID_ERRORS`, `Hostname`)과 4.9부터의 이름(`DCGM_FI_DEV_FB_USED_BYTES`, `DCGM_FI_DEV_XID_ERROR`, `hostname`)을 모두 읽는다.
   - MIG 모드는 수집 목록에 `DCGM_FI_DEV_MIG_MODE`를 넣어야 나온다. 없으면 조각 줄(`GPU_I_ID`)이 있는 GPU는 MIG 켜짐, 없는 GPU는 나누지 않은 GPU로 본다.
   - 조각을 쓰는 Pod는 dcgm-exporter의 Kubernetes 연결을 켜야 나온다 (`DCGM_EXPORTER_KUBERNETES=true`, GKE는 `DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name`도).
-  - `internal/metrics/dcgm/testdata/`의 출력은 손으로 만든 예시다. GKE에서 실제 출력을 받으면(설계도 4장) 바꾼다.
-- 조각 건강은 GPU의 마지막 XID로 정한다. 리셋이 필요한 하드웨어 계열 XID(48, 63, 64, 74, 79, 92, 95, 119, 120)만 비정상으로 본다. 설계도 10장 9번이 정해질 때까지 쓰는 임시 기준이다.
+- 조각 건강은 GPU의 마지막 XID로 정한다. 리셋이 필요한 하드웨어 계열 XID(48, 63, 64, 74, 79, 92, 95, 119, 120)만 비정상으로 본다.
 
 ## 장부
 
-테이블 6개는 `migrations/000001_init_ledger.up.sql`에 있다 (설계도 6장).
+테이블 6개는 `migrations/000001_init_ledger.up.sql`에 있다.
 
 | 테이블 | 담는 것 | 쓰는 쪽 |
 | --- | --- | --- |
@@ -293,28 +311,3 @@ curl -s -X POST localhost:8080/api/v1/reservations -H 'Content-Type: application
 | `workload` | GPU를 요청한 Pod | 서버1 |
 | `allocation` | 예약과 할당 (출처 RESERVATION / OBSERVED) | 서버2 `allocation` 패키지만 |
 | `allocation_event` | 이력. 추가만 하고 고치거나 지우지 않는다 (트리거가 막음) | 서버2, 서버1(구성 변경) |
-
-쿼리를 바꾸면 `internal/ledger/queries/`의 SQL을 고치고 `make gen`을 돌린다. 생성된 파일(`*.sql.go`, `models.go`, `db.go`)은 직접 고치지 않는다.
-
-## 개발 단계
-
-| 단계 | 내용 | 상태 |
-| --- | --- | --- |
-| 0 | 레포 뼈대, 린트, CI | 완료 |
-| 1 | 장부 (마이그레이션, sqlc) | 완료 |
-| 2 | 서버1 수집 (목업 메트릭) | 완료 |
-| 3 | 서버1 K8s Node·Pod watch | 완료 |
-| 4 | 서버2 조회 API | 완료 |
-| 5 | 서버2 예약·이력 | 완료 |
-| 6 | 웹 화면 | 완료 |
-| 7 | 실장비 연동 (GKE a2-highgpu-1g, A100) | 진행 중: DCGM 수집기 완료, 실장비 확인 남음 |
-| 8 | 클러스터 배포 | 진행 중: Dockerfile·Kustomize 완료, kind에서 확인. GKE 배포 남음 |
-| 9 | 데모 리허설 (GKE a2-highgpu-1g, A100) | 예정 |
-
-## 저장소 운영
-
-사내 GitLab에서 개발하고, GitHub(GRIM-GPU)에는 작업 단위로 정리해 사람이 직접 커밋한다(GRIM-BG-04 방식, 유지 여부 확인 중). CI는 `.gitlab-ci.yml`에 있다.
-
-커밋 메시지는 Conventional Commits 형식 `type(scope): 설명`으로 쓴다. `type`은 `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `build`, `ci` 중 하나이고, `scope`는 패키지 이름이다 (예: `feat(allocation): 예약 만료 처리`). 설명은 한국어로 쓰고, 공동 작성자(Co-authored-by) 줄은 적지 않는다.
-
-GCP 프로젝트 ID, kubeconfig, 인증서·키, `.env`는 레포에 올리지 않는다(`.gitignore`). 매니페스트의 DB 계정(`gpupool`)은 클러스터 안에서만 쓰는 데모용 값이다.
