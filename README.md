@@ -19,6 +19,7 @@ GRIM-GPU 과제의 GPU Pool Manager 데모 구현이다. GPU·MIG 분할 정보�
 | `deploy/` | Kustomize `base`(서버1·서버2·화면·PostgreSQL·RBAC), `components/dcgm-exporter`(GKE GPU 노드용), `overlays/`(local, gcp-dev, gcp-demo) |
 | `test/e2e/` | 데모 시나리오 자동 확인 |
 | `test/kind/` | kind에서 3단계를 확인할 때 쓰는 예시 GPU Pod |
+| `.env.example` | 로컬 전용 값(GCP 프로젝트 ID)의 본보기. `.env`로 복사해 채우며 `.env`는 git이 무시한다 |
 
 ## 필요한 도구
 
@@ -137,7 +138,7 @@ docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin
 
 ### GKE에 배포
 
-GCP 프로젝트 `GCP_PROJECT_ID`, 서울 `asia-northeast3-b`, GKE Standard 기준이다. gcloud 명령은 로그인한 사용자가 직접 실행한다.
+서울 `asia-northeast3-b`, GKE Standard 기준이다. GCP 프로젝트 ID는 레포에 적지 않는다. `.env.example`을 `.env`로 복사해 `GCP_PROJECT`를 채우면 Makefile이 읽는다(`.env`는 git이 무시한다). gcloud 명령은 로그인한 사용자가 직접 실행한다.
 
 이미지 저장소를 만들고 Docker 인증을 연결한다(처음 한 번).
 
@@ -149,10 +150,10 @@ gcloud artifacts repositories create gpu-pool --repository-format=docker --locat
 gcloud auth configure-docker asia-northeast3-docker.pkg.dev
 ```
 
-GKE 노드는 amd64라 Apple Silicon에서는 `IMAGE_PLATFORM`을 준다. `IMAGE_PREFIX`는 `deploy/overlays/gcp-*/kustomization.yaml`의 `newName`과 같아야 한다.
+GKE 노드는 amd64라 `docker-build-gcp`는 `linux/amd64`로 빌드한다. 이미지 주소는 `asia-northeast3-docker.pkg.dev/<GCP_PROJECT>/gpu-pool`이다. `deploy/overlays/gcp-*/kustomization.yaml`의 `newName`에는 `GCP_PROJECT_ID` 자리표시자가 있고 `make deploy-gcp-*`가 `.env`의 값으로 바꿔 적용한다.
 
 ```bash
-make docker-build docker-push IMAGE_PREFIX=asia-northeast3-docker.pkg.dev/GCP_PROJECT_ID/gpu-pool IMAGE_PLATFORM=linux/amd64
+make docker-build-gcp docker-push-gcp
 ```
 
 클러스터(일반 노드 풀 1대)와 A100 MIG 노드 풀(1대, `1g.5gb` × 7)을 만든다. A100 노드는 켜져 있는 동안 비용이 나간다.
@@ -315,3 +316,5 @@ curl -s -X POST localhost:8080/api/v1/reservations -H 'Content-Type: application
 사내 GitLab에서 개발하고, GitHub(GRIM-GPU)에는 작업 단위로 정리해 사람이 직접 커밋한다(GRIM-BG-04 방식, 유지 여부 확인 중). CI는 `.gitlab-ci.yml`에 있다.
 
 커밋 메시지는 Conventional Commits 형식 `type(scope): 설명`으로 쓴다. `type`은 `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `build`, `ci` 중 하나이고, `scope`는 패키지 이름이다 (예: `feat(allocation): 예약 만료 처리`). 설명은 한국어로 쓰고, 공동 작성자(Co-authored-by) 줄은 적지 않는다.
+
+GCP 프로젝트 ID, kubeconfig, 인증서·키, `.env`는 레포에 올리지 않는다(`.gitignore`). 매니페스트의 DB 계정(`gpupool`)은 클러스터 안에서만 쓰는 데모용 값이다.

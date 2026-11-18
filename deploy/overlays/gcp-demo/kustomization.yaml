@@ -1,5 +1,6 @@
 # GCP 데모 리허설·데모 환경. 개발 환경과 같은 클러스터·노드 풀을 쓰고(A100 1장, 1g.5gb × 7), 이미지 태그만 demo다.
 # 데모용으로 고정한 이미지를 쓰기 위해 overlay를 따로 둔다. 구성 차이가 생기면 여기에 적는다.
+# newName의 GCP_PROJECT_ID는 자리표시자다. 프로젝트 ID는 레포에 적지 않고, make deploy-gcp-demo가 .env의 GCP_PROJECT로 바꿔 적용한다.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: gpu-pool

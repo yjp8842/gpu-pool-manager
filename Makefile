@@ -5,6 +5,9 @@ BIN           := bin
 # ./... 는 web/node_modules 안의 Go 파일까지 잡으므로 Go 패키지 경로를 명시한다.
 GO_PKGS       := ./cmd/... ./internal/... ./migrations/...
 
+# 로컬 전용 값(GCP 프로젝트 ID 등)은 레포에 적지 않고 .env에서 읽는다. .env는 git이 무시한다 (.env.example 참고).
+-include .env
+
 # 코드 생성·마이그레이션 도구는 설치하지 않고 고정한 버전을 go run으로 쓴다.
 SQLC_VERSION    := v1.31.1
 OAPI_VERSION    := v2.8.2
@@ -33,8 +36,9 @@ DOCKER_BUILD      := docker build $(if $(IMAGE_PLATFORM),--platform $(IMAGE_PLAT
 IMAGES            := $(IMAGE_PREFIX)/collector:$(IMAGE_TAG) $(IMAGE_PREFIX)/api:$(IMAGE_TAG) $(IMAGE_PREFIX)/web:$(IMAGE_TAG)
 # GKE는 사용자의 kubectl을 쓴다 (gcloud container clusters get-credentials 뒤).
 GKE_KUBECTL       ?= kubectl
-# Artifact Registry 주소 (deploy/overlays/gcp-*/kustomization.yaml의 newName과 같아야 한다)
-GCP_PROJECT       ?= GCP_PROJECT_ID
+# Artifact Registry 주소. GCP_PROJECT는 .env에 두거나 make 인자로 준다.
+# deploy/overlays/gcp-*/kustomization.yaml의 newName에는 GCP_PROJECT_ID 자리표시자가 있고 deploy-gcp-*가 이 값으로 바꾼다.
+GCP_PROJECT       ?=
 GCP_REGION        ?= asia-northeast3
 AR_PREFIX         := $(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/gpu-pool
 
@@ -49,7 +53,8 @@ LOCAL_DATABASE_URL := postgres://gpupool:gpupool@localhost:5432/gpupool?sslmode=
 	db-up db-down db-migrate db-psql \
 	kind-up kind-fake-gpu kind-down kind-load \
 	run-collector run-collector-kind run-api run-web run-web-mock \
-	docker-build docker-push kustomize-build deploy-local undeploy-local deploy-gcp-dev deploy-gcp-demo clean
+	docker-build docker-push docker-build-gcp docker-push-gcp require-gcp-project \
+	kustomize-build deploy-local undeploy-local deploy-gcp-dev deploy-gcp-demo clean
 
 all: lint test build
 
@@ -156,7 +161,7 @@ run-web-mock:
 
 # ---- 컨테이너 이미지와 배포 (8단계) ----
 
-# 이미지 3개를 빌드한다. GKE용: make docker-build docker-push IMAGE_PREFIX=$(AR_PREFIX) IMAGE_PLATFORM=linux/amd64
+# 이미지 3개를 빌드한다. GKE용은 docker-build-gcp를 쓴다.
 docker-build:
 	$(DOCKER_BUILD) -f cmd/collector/Dockerfile -t $(IMAGE_PREFIX)/collector:$(IMAGE_TAG) .
 	$(DOCKER_BUILD) -f cmd/api/Dockerfile -t $(IMAGE_PREFIX)/api:$(IMAGE_TAG) .
@@ -164,6 +169,17 @@ docker-build:
 
 docker-push:
 	for img in $(IMAGES); do docker push $$img || exit 1; done
+
+# GKE용 이미지: Artifact Registry 주소로 amd64 빌드·푸시 (GCP_PROJECT 필요). 태그는 IMAGE_TAG로 준다.
+docker-build-gcp: require-gcp-project
+	$(MAKE) docker-build IMAGE_PREFIX=$(AR_PREFIX) IMAGE_PLATFORM=linux/amd64
+
+docker-push-gcp: require-gcp-project
+	$(MAKE) docker-push IMAGE_PREFIX=$(AR_PREFIX)
+
+# GCP_PROJECT가 비어 있으면 멈춘다.
+require-gcp-project:
+	@test -n "$(GCP_PROJECT)" || { echo "GCP_PROJECT가 비어 있다. .env에 GCP_PROJECT=<프로젝트 ID>를 적거나 make 인자로 준다 (.env.example 참고)."; exit 1; }
 
 # 세 overlay가 렌더링되는지 확인한다 (CI에서도 돈다).
 kustomize-build:
@@ -179,11 +195,12 @@ deploy-local:
 undeploy-local:
 	$(KUSTOMIZE) build deploy/overlays/local | $(KUBECTL) delete --ignore-not-found -f -
 
-deploy-gcp-dev:
-	$(KUSTOMIZE) build deploy/overlays/gcp-dev | $(GKE_KUBECTL) apply -f -
+# overlay의 GCP_PROJECT_ID 자리표시자를 GCP_PROJECT로 바꿔 적용한다.
+deploy-gcp-dev: require-gcp-project
+	$(KUSTOMIZE) build deploy/overlays/gcp-dev | sed 's|/GCP_PROJECT_ID/|/$(GCP_PROJECT)/|g' | $(GKE_KUBECTL) apply -f -
 
-deploy-gcp-demo:
-	$(KUSTOMIZE) build deploy/overlays/gcp-demo | $(GKE_KUBECTL) apply -f -
+deploy-gcp-demo: require-gcp-project
+	$(KUSTOMIZE) build deploy/overlays/gcp-demo | sed 's|/GCP_PROJECT_ID/|/$(GCP_PROJECT)/|g' | $(GKE_KUBECTL) apply -f -
 
 clean:
 	rm -rf $(BIN) web/dist

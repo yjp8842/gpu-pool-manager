@@ -10,3 +10,13 @@ coverage/
 /.kube/
 .idea/
 .vscode/
+
+# 로컬 전용 값·인증서·키. .env.example만 올린다.
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+kubeconfig*
+*.tar.gz
+.claude/settings.local.json
