@@ -29,6 +29,8 @@ KUBECTL          ?= docker exec -i $(KIND_NODE) kubectl --kubeconfig=/etc/kubern
 # 컨테이너 이미지와 배포 (8단계). GKE용 이미지는 amd64여야 한다: make docker-build IMAGE_PLATFORM=linux/amd64
 KUSTOMIZE_VERSION := v5.8.2
 KUSTOMIZE         := $(GO) run sigs.k8s.io/kustomize/kustomize/v5@$(KUSTOMIZE_VERSION)
+# 렌더링 명령. Go 툴체인 내려받기가 느린 곳(Cloud Shell)에서는 KUSTOMIZE_BUILD="kubectl kustomize"로 바꿔 kubectl에 든 kustomize를 쓴다.
+KUSTOMIZE_BUILD   ?= $(KUSTOMIZE) build
 IMAGE_PREFIX      ?= gpu-pool
 IMAGE_TAG         ?= dev
 IMAGE_PLATFORM    ?=
@@ -183,24 +185,24 @@ require-gcp-project:
 
 # 세 overlay가 렌더링되는지 확인한다 (CI에서도 돈다).
 kustomize-build:
-	@for o in local gcp-dev gcp-demo; do $(KUSTOMIZE) build deploy/overlays/$$o > /dev/null && echo "deploy/overlays/$$o: ok" || exit 1; done
+	@for o in local gcp-dev gcp-demo; do $(KUSTOMIZE_BUILD) deploy/overlays/$$o > /dev/null && echo "deploy/overlays/$$o: ok" || exit 1; done
 
 # 로컬 이미지를 kind 노드에 넣는다. 그 뒤 deploy-local.
 kind-load:
 	$(KIND) load docker-image --name $(KIND_CLUSTER) $(IMAGES)
 
 deploy-local:
-	$(KUSTOMIZE) build deploy/overlays/local | $(KUBECTL) apply -f -
+	$(KUSTOMIZE_BUILD) deploy/overlays/local | $(KUBECTL) apply -f -
 
 undeploy-local:
-	$(KUSTOMIZE) build deploy/overlays/local | $(KUBECTL) delete --ignore-not-found -f -
+	$(KUSTOMIZE_BUILD) deploy/overlays/local | $(KUBECTL) delete --ignore-not-found -f -
 
 # overlay의 GCP_PROJECT_ID 자리표시자를 GCP_PROJECT로 바꿔 적용한다.
 deploy-gcp-dev: require-gcp-project
-	$(KUSTOMIZE) build deploy/overlays/gcp-dev | sed 's|/GCP_PROJECT_ID/|/$(GCP_PROJECT)/|g' | $(GKE_KUBECTL) apply -f -
+	$(KUSTOMIZE_BUILD) deploy/overlays/gcp-dev | sed 's|/GCP_PROJECT_ID/|/$(GCP_PROJECT)/|g' | $(GKE_KUBECTL) apply -f -
 
 deploy-gcp-demo: require-gcp-project
-	$(KUSTOMIZE) build deploy/overlays/gcp-demo | sed 's|/GCP_PROJECT_ID/|/$(GCP_PROJECT)/|g' | $(GKE_KUBECTL) apply -f -
+	$(KUSTOMIZE_BUILD) deploy/overlays/gcp-demo | sed 's|/GCP_PROJECT_ID/|/$(GCP_PROJECT)/|g' | $(GKE_KUBECTL) apply -f -
 
 clean:
 	rm -rf $(BIN) web/dist
