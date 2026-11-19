@@ -34,8 +34,10 @@ KUSTOMIZE_BUILD   ?= $(KUSTOMIZE) build
 IMAGE_PREFIX      ?= gpu-pool
 IMAGE_TAG         ?= dev
 IMAGE_PLATFORM    ?=
+# 이미지 이름 앞에 붙이는 접두사. Docker Hub는 <계정>/<저장소> 한 단계라 gpu-pool-collector 꼴로 만들 때 쓴다.
+IMAGE_NAME_PREFIX ?=
 DOCKER_BUILD      := docker build $(if $(IMAGE_PLATFORM),--platform $(IMAGE_PLATFORM),)
-IMAGES            := $(IMAGE_PREFIX)/collector:$(IMAGE_TAG) $(IMAGE_PREFIX)/api:$(IMAGE_TAG) $(IMAGE_PREFIX)/web:$(IMAGE_TAG)
+IMAGES            := $(IMAGE_PREFIX)/$(IMAGE_NAME_PREFIX)collector:$(IMAGE_TAG) $(IMAGE_PREFIX)/$(IMAGE_NAME_PREFIX)api:$(IMAGE_TAG) $(IMAGE_PREFIX)/$(IMAGE_NAME_PREFIX)web:$(IMAGE_TAG)
 # GKE는 사용자의 kubectl을 쓴다 (gcloud container clusters get-credentials 뒤).
 GKE_KUBECTL       ?= kubectl
 # Artifact Registry 주소. GCP_PROJECT는 .env에 두거나 make 인자로 준다.
@@ -43,6 +45,11 @@ GKE_KUBECTL       ?= kubectl
 GCP_PROJECT       ?=
 GCP_REGION        ?= asia-northeast3
 AR_PREFIX         := $(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/gpu-pool
+# Docker Hub 주소. 공개 저장소 기준이라 노드 쪽 풀 인증 설정이 없다. DOCKER_HUB_USER는 .env에 두거나 make 인자로 준다.
+# deploy/overlays/gcp-hub/kustomization.yaml의 newName에는 DOCKER_HUB_USER 자리표시자가 있고 deploy-gcp-hub가 이 값으로 바꾼다.
+DOCKER_HUB_USER   ?=
+HUB_PREFIX        := docker.io/$(DOCKER_HUB_USER)
+HUB_NAME_PREFIX   := gpu-pool-
 
 # 로컬 PostgreSQL (make db-up)
 DB_CONTAINER       := gpu-pool-postgres
@@ -56,7 +63,8 @@ LOCAL_DATABASE_URL := postgres://gpupool:gpupool@localhost:5432/gpupool?sslmode=
 	kind-up kind-fake-gpu kind-down kind-load \
 	run-collector run-collector-kind run-api run-web run-web-mock \
 	docker-build docker-push docker-build-gcp docker-push-gcp require-gcp-project \
-	kustomize-build deploy-local undeploy-local deploy-gcp-dev deploy-gcp-demo clean
+	docker-build-hub docker-push-hub require-hub-user \
+	kustomize-build deploy-local undeploy-local deploy-gcp-dev deploy-gcp-demo deploy-gcp-hub clean
 
 all: lint test build
 
@@ -163,11 +171,11 @@ run-web-mock:
 
 # ---- 컨테이너 이미지와 배포 ----
 
-# 이미지 3개를 빌드한다. GKE용은 docker-build-gcp를 쓴다.
+# 이미지 3개를 빌드한다. GKE용은 docker-build-gcp(Artifact Registry) 또는 docker-build-hub(Docker Hub)를 쓴다.
 docker-build:
-	$(DOCKER_BUILD) -f cmd/collector/Dockerfile -t $(IMAGE_PREFIX)/collector:$(IMAGE_TAG) .
-	$(DOCKER_BUILD) -f cmd/api/Dockerfile -t $(IMAGE_PREFIX)/api:$(IMAGE_TAG) .
-	$(DOCKER_BUILD) -t $(IMAGE_PREFIX)/web:$(IMAGE_TAG) web
+	$(DOCKER_BUILD) -f cmd/collector/Dockerfile -t $(IMAGE_PREFIX)/$(IMAGE_NAME_PREFIX)collector:$(IMAGE_TAG) .
+	$(DOCKER_BUILD) -f cmd/api/Dockerfile -t $(IMAGE_PREFIX)/$(IMAGE_NAME_PREFIX)api:$(IMAGE_TAG) .
+	$(DOCKER_BUILD) -t $(IMAGE_PREFIX)/$(IMAGE_NAME_PREFIX)web:$(IMAGE_TAG) web
 
 docker-push:
 	for img in $(IMAGES); do docker push $$img || exit 1; done
@@ -183,9 +191,20 @@ docker-push-gcp: require-gcp-project
 require-gcp-project:
 	@test -n "$(GCP_PROJECT)" || { echo "GCP_PROJECT가 비어 있다. .env에 GCP_PROJECT=<프로젝트 ID>를 적거나 make 인자로 준다 (.env.example 참고)."; exit 1; }
 
-# 세 overlay가 렌더링되는지 확인한다 (CI에서도 돈다).
+# Docker Hub용 이미지: docker.io/<계정>/gpu-pool-{collector,api,web} 주소로 amd64 빌드·푸시 (DOCKER_HUB_USER 필요, docker login을 먼저 한다).
+docker-build-hub: require-hub-user
+	$(MAKE) docker-build IMAGE_PREFIX=$(HUB_PREFIX) IMAGE_NAME_PREFIX=$(HUB_NAME_PREFIX) IMAGE_PLATFORM=linux/amd64
+
+docker-push-hub: require-hub-user
+	$(MAKE) docker-push IMAGE_PREFIX=$(HUB_PREFIX) IMAGE_NAME_PREFIX=$(HUB_NAME_PREFIX)
+
+# DOCKER_HUB_USER가 비어 있으면 멈춘다.
+require-hub-user:
+	@test -n "$(DOCKER_HUB_USER)" || { echo "DOCKER_HUB_USER가 비어 있다. .env에 DOCKER_HUB_USER=<Docker Hub 계정>을 적거나 make 인자로 준다 (.env.example 참고)."; exit 1; }
+
+# overlay가 모두 렌더링되는지 확인한다 (CI에서도 돈다).
 kustomize-build:
-	@for o in local gcp-dev gcp-demo; do $(KUSTOMIZE_BUILD) deploy/overlays/$$o > /dev/null && echo "deploy/overlays/$$o: ok" || exit 1; done
+	@for o in local gcp-dev gcp-demo gcp-hub; do $(KUSTOMIZE_BUILD) deploy/overlays/$$o > /dev/null && echo "deploy/overlays/$$o: ok" || exit 1; done
 
 # 로컬 이미지를 kind 노드에 넣는다. 그 뒤 deploy-local.
 kind-load:
@@ -203,6 +222,10 @@ deploy-gcp-dev: require-gcp-project
 
 deploy-gcp-demo: require-gcp-project
 	$(KUSTOMIZE_BUILD) deploy/overlays/gcp-demo | sed 's|/GCP_PROJECT_ID/|/$(GCP_PROJECT)/|g' | $(GKE_KUBECTL) apply -f -
+
+# Docker Hub 이미지로 배포한다. overlay의 DOCKER_HUB_USER 자리표시자를 DOCKER_HUB_USER로 바꿔 적용한다.
+deploy-gcp-hub: require-hub-user
+	$(KUSTOMIZE_BUILD) deploy/overlays/gcp-hub | sed 's|docker.io/DOCKER_HUB_USER/|docker.io/$(DOCKER_HUB_USER)/|g' | $(GKE_KUBECTL) apply -f -
 
 clean:
 	rm -rf $(BIN) web/dist

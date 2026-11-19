@@ -1,0 +1,23 @@
+# GCP 개발 환경과 같은 클러스터에, 이미지만 Docker Hub 공개 저장소에서 받는다. 클러스터·노드 풀은 gcp-dev와 같다.
+# newName의 DOCKER_HUB_USER는 자리표시자다. 계정 이름은 레포에 적지 않고, make deploy-gcp-hub가 .env의 DOCKER_HUB_USER로 바꿔 적용한다.
+# 공개 저장소라 노드에 풀 인증이 필요 없다. 비공개로 바꾸면 docker-registry Secret과 imagePullSecrets 패치를 더해야 한다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gpu-pool
+
+resources:
+  - ../../base
+
+components:
+  - ../../components/dcgm-exporter
+
+images:
+  - name: gpu-pool/collector
+    newName: docker.io/DOCKER_HUB_USER/gpu-pool-collector
+    newTag: dev
+  - name: gpu-pool/api
+    newName: docker.io/DOCKER_HUB_USER/gpu-pool-api
+    newTag: dev
+  - name: gpu-pool/web
+    newName: docker.io/DOCKER_HUB_USER/gpu-pool-web
+    newTag: dev

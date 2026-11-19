@@ -188,6 +188,28 @@ make deploy-gcp-dev GCP_PROJECT=<프로젝트 ID> KUSTOMIZE_BUILD="kubectl kusto
 kubectl -n gpu-pool get pods -o wide
 ```
 
+#### Docker Hub에서 받기
+
+Artifact Registry 대신 Docker Hub 공개 저장소의 이미지로 배포할 수도 있다. 클러스터는 그대로 두고 이미지 주소만 바뀐다. `.env`에 `DOCKER_HUB_USER`를 채우거나 make 인자로 준다. 이미지 주소는 `docker.io/<DOCKER_HUB_USER>/gpu-pool-collector`, `gpu-pool-api`, `gpu-pool-web`이고, `deploy/overlays/gcp-hub/kustomization.yaml`의 `newName`에 있는 `DOCKER_HUB_USER` 자리표시자를 `make deploy-gcp-hub`가 바꿔 적용한다. 공개 저장소라 노드 쪽 풀 인증은 필요 없다. Cloud Shell에서 빌드하면 amd64라 교차 빌드가 필요 없다.
+
+```bash
+docker login -u <Docker Hub 계정>
+```
+
+```bash
+make docker-build-hub docker-push-hub DOCKER_HUB_USER=<Docker Hub 계정>
+```
+
+```bash
+make deploy-gcp-hub DOCKER_HUB_USER=<Docker Hub 계정> KUSTOMIZE_BUILD="kubectl kustomize"
+```
+
+이미 Artifact Registry 이미지로 떠 있는 상태라면 태그가 같아 Pod가 그대로 돌므로, 새 주소에서 받게 하려면 재시작한다.
+
+```bash
+kubectl -n gpu-pool rollout restart deploy
+```
+
 dcgm-exporter가 GPU 노드에 떴으면 `/metrics`를 직접 받아 확인한다. 빈 조각(`GPU_I_ID`)이 나오는지, `Hostname` 라벨이 노드 이름인지 본다.
 
 ```bash
