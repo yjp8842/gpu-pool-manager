@@ -14,10 +14,10 @@ GPU Pool Manager는 Kubernetes 클러스터의 GPU·MIG 분할 정보를 DCGM �
 | `internal/ledger/queries/` | 장부 SQL 쿼리. `make gen`으로 `internal/ledger`의 Go 코드를 만든다 (sqlc) |
 | `web/` | React + TypeScript (Vite) 화면 |
 | `cmd/*/Dockerfile`, `web/Dockerfile` | 컨테이너 이미지. 서버1·서버2는 distroless, 화면은 nginx(`web/nginx/`)가 정적 파일을 내주고 `/api`를 서버2로 넘긴다 |
-| `deploy/` | Kustomize `base`(서버1·서버2·화면·PostgreSQL·RBAC), `components/dcgm-exporter`(GKE GPU 노드용), `overlays/`(local, gcp-dev, gcp-demo) |
+| `deploy/` | Kustomize `base`(서버1·서버2·화면·PostgreSQL·RBAC), `components/dcgm-exporter`(GKE GPU 노드용), `overlays/`(local, gcp-hub, gcp-dev, gcp-demo) |
 | `test/kind/` | kind에서 Node·Pod 수집을 확인할 때 쓰는 예시 GPU Pod |
 | `test/gke/` | GKE MIG 노드에서 조각 하나를 받는 확인용 Pod |
-| `.env.example` | 로컬 전용 값(GCP 프로젝트 ID)의 본보기. `.env`로 복사해 채우며 `.env`는 git이 무시한다 |
+| `.env.example` | 로컬 전용 값(Docker Hub 계정, GCP 프로젝트 ID)의 본보기. `.env`로 복사해 채우며 `.env`는 git이 무시한다 |
 
 ## 필요한 도구
 
@@ -26,11 +26,7 @@ GPU Pool Manager는 Kubernetes 클러스터의 GPU·MIG 분할 정보를 DCGM �
 - golangci-lint v2 (`make lint`에 필요)
 - Docker (장부 테스트와 로컬 DB에 필요). sqlc와 golang-migrate는 Makefile이 고정 버전을 `go run`으로 쓰므로 따로 설치하지 않는다.
 
-colima를 쓰면 testcontainers가 Docker를 찾도록 환경 변수 두 개를 둔다.
-
-```bash
-export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock" TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
-```
+Docker 소켓이 기본 위치(`/var/run/docker.sock`)가 아니면 `DOCKER_HOST`를 지정한다. testcontainers가 컨테이너 안에서 쓸 소켓 경로는 `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE`로 준다.
 
 ## 시작하기
 
@@ -61,6 +57,8 @@ make run-collector
 ```bash
 make run-web
 ```
+
+서버2는 `:8080`, 서버1은 `:8081`에서 뜨고, 둘 다 `GET /healthz`로 상태를 확인할 수 있다. 화면 개발 서버는 `/api`와 `/healthz`를 서버2로 넘긴다.
 
 서버2 없이 화면만 볼 때는 목업 API(MSW)로 띄운다. 화면에 "샘플 데이터"가 표시된다.
 
@@ -100,8 +98,6 @@ docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin
 
 다 쓰면 `make kind-down`으로 지운다.
 
-서버2는 `:8080`, 서버1은 `:8081`에서 뜨고, 둘 다 `GET /healthz`로 상태를 확인할 수 있다. 화면 개발 서버는 `/api`와 `/healthz`를 서버2로 넘긴다.
-
 ## 클러스터 배포
 
 `deploy/`의 Kustomize 매니페스트로 네임스페이스 `gpu-pool`에 서버1(`collector`), 서버2(`api`), 화면(`web`), PostgreSQL(`postgres`, 디스크 10Gi)을 띄운다. 서버1은 ServiceAccount `collector`로 Node·Pod를 읽는다(ClusterRole은 get/list/watch뿐). 화면과 API는 외부 IP를 열지 않고 `kubectl port-forward`로 접속한다. DB 계정은 클러스터 안에서만 쓰는 데모용 값이고 `deploy/base/kustomization.yaml`에 있다.
@@ -136,23 +132,7 @@ docker exec -i gpu-pool-control-plane kubectl --kubeconfig=/etc/kubernetes/admin
 
 ### GKE에 배포
 
-서울 `asia-northeast3-b`, GKE Standard 기준이다. GCP 프로젝트 ID는 레포에 적지 않는다. `.env.example`을 `.env`로 복사해 `GCP_PROJECT`를 채우면 Makefile이 읽는다(`.env`는 git이 무시한다). gcloud에 로그인되어 있어야 한다.
-
-이미지 저장소를 만들고 Docker 인증을 연결한다(처음 한 번).
-
-```bash
-gcloud artifacts repositories create gpu-pool --repository-format=docker --location=asia-northeast3
-```
-
-```bash
-gcloud auth configure-docker asia-northeast3-docker.pkg.dev
-```
-
-GKE 노드는 amd64라 `docker-build-gcp`는 `linux/amd64`로 빌드한다. 이미지 주소는 `asia-northeast3-docker.pkg.dev/<GCP_PROJECT>/gpu-pool`이다. `deploy/overlays/gcp-*/kustomization.yaml`의 `newName`에는 `GCP_PROJECT_ID` 자리표시자가 있고 `make deploy-gcp-*`가 `.env`의 값(또는 `GCP_PROJECT=` make 인자)으로 바꿔 적용한다.
-
-```bash
-make docker-build-gcp docker-push-gcp
-```
+서울 `asia-northeast3-b`, GKE Standard 기준이다. 로컬 전용 값(Docker Hub 계정, GCP 프로젝트 ID)은 레포에 적지 않는다. `.env.example`을 `.env`로 복사해 채우면 Makefile이 읽고, make 인자로 줄 수도 있다. gcloud에 로그인되어 있어야 한다.
 
 클러스터(일반 노드 풀 1대)와 A100 MIG 노드 풀(1대, `1g.5gb` × 7)을 만든다. A100 노드는 켜져 있는 동안 비용이 나간다.
 
@@ -168,43 +148,63 @@ gcloud container node-pools create a100-mig --cluster gpu-pool --zone asia-north
 gcloud container clusters get-credentials gpu-pool --zone asia-northeast3-b
 ```
 
-배포하고 상태를 본다.
+이미지는 Docker Hub 공개 저장소나 Artifact Registry 중 한 곳에 올린다. GKE 노드는 amd64라 두 빌드 타깃 모두 `linux/amd64`로 빌드한다. overlay의 `newName`에는 계정·프로젝트 자리표시자(`DOCKER_HUB_USER`, `GCP_PROJECT_ID`)가 있고 `make deploy-gcp-*`가 `.env` 값으로 바꿔 적용한다.
 
-```bash
-make deploy-gcp-dev
-```
+#### Docker Hub 공개 저장소
 
-콘솔 Cloud Shell에서 배포할 때는 레포를 받은 뒤 프로젝트 ID를 make 인자로 준다. Cloud Shell에는 kubectl이 있으므로 `KUSTOMIZE_BUILD`로 kubectl에 든 kustomize를 쓰면 Go 툴체인을 내려받지 않는다.
-
-```bash
-git clone https://github.com/yjp8842/gpu-pool-manager.git && cd gpu-pool-manager
-```
-
-```bash
-make deploy-gcp-dev GCP_PROJECT=<프로젝트 ID> KUSTOMIZE_BUILD="kubectl kustomize"
-```
-
-```bash
-kubectl -n gpu-pool get pods -o wide
-```
-
-#### Docker Hub에서 받기
-
-Artifact Registry 대신 Docker Hub 공개 저장소의 이미지로 배포할 수도 있다. 클러스터는 그대로 두고 이미지 주소만 바뀐다. `.env`에 `DOCKER_HUB_USER`를 채우거나 make 인자로 준다. 이미지 주소는 `docker.io/<DOCKER_HUB_USER>/gpu-pool-collector`, `gpu-pool-api`, `gpu-pool-web`이고, `deploy/overlays/gcp-hub/kustomization.yaml`의 `newName`에 있는 `DOCKER_HUB_USER` 자리표시자를 `make deploy-gcp-hub`가 바꿔 적용한다. 공개 저장소라 노드 쪽 풀 인증은 필요 없다. Cloud Shell에서 빌드하면 amd64라 교차 빌드가 필요 없다.
+이미지 주소는 `docker.io/<DOCKER_HUB_USER>/gpu-pool-collector`, `gpu-pool-api`, `gpu-pool-web`이고 overlay는 `gcp-hub`다. 공개 저장소라 노드 쪽 풀 인증은 필요 없다.
 
 ```bash
 docker login -u <Docker Hub 계정>
 ```
 
 ```bash
-make docker-build-hub docker-push-hub DOCKER_HUB_USER=<Docker Hub 계정>
+make docker-build-hub docker-push-hub
+```
+
+```bash
+make deploy-gcp-hub
+```
+
+#### Artifact Registry
+
+이미지 주소는 `asia-northeast3-docker.pkg.dev/<GCP_PROJECT>/gpu-pool`이고 overlay는 `gcp-dev`(태그 dev)와 `gcp-demo`(태그 demo)다. 저장소를 만들고 Docker 인증을 연결한다(처음 한 번). 노드가 이미지를 받으려면 노드 서비스 계정에 Artifact Registry 읽기 권한이 있어야 한다.
+
+```bash
+gcloud artifacts repositories create gpu-pool --repository-format=docker --location=asia-northeast3
+```
+
+```bash
+gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+```
+
+```bash
+make docker-build-gcp docker-push-gcp
+```
+
+```bash
+make deploy-gcp-dev
+```
+
+#### Cloud Shell에서 배포
+
+Cloud Shell에서는 레포를 받은 뒤 같은 명령을 쓴다. amd64 머신이라 교차 빌드가 없고, kubectl이 있으므로 `KUSTOMIZE_BUILD`로 kubectl에 든 kustomize를 쓰면 Go 툴체인을 내려받지 않는다. 값은 make 인자로 준다.
+
+```bash
+git clone https://github.com/yjp8842/gpu-pool-manager.git && cd gpu-pool-manager
 ```
 
 ```bash
 make deploy-gcp-hub DOCKER_HUB_USER=<Docker Hub 계정> KUSTOMIZE_BUILD="kubectl kustomize"
 ```
 
-이미 Artifact Registry 이미지로 떠 있는 상태라면 태그가 같아 Pod가 그대로 돌므로, 새 주소에서 받게 하려면 재시작한다.
+#### 확인
+
+```bash
+kubectl -n gpu-pool get pods -o wide
+```
+
+같은 태그를 다시 푸시한 뒤에는 재시작해야 새 이미지를 받는다.
 
 ```bash
 kubectl -n gpu-pool rollout restart deploy
@@ -242,7 +242,7 @@ kubectl -n gpu-pool port-forward svc/web 8080:80
 gcloud container node-pools resize a100-mig --cluster gpu-pool --zone asia-northeast3-b --num-nodes 0
 ```
 
-dcgm-exporter(`deploy/components/dcgm-exporter/`)는 GKE가 설치한 드라이버(`/home/kubernetes/bin/nvidia`)를 붙이고, kubelet pod-resources로 조각을 쓰는 Pod를 알아낸다(`DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name`). 수집 목록 `counters.csv`에는 기본 목록에 없는 `DCGM_FI_DEV_MIG_MODE`가 들어 있다. exporter가 이 항목을 거부하면 줄을 빼면 되고, 서버1은 조각 유무로 MIG 켜짐을 판단한다. 서버1은 Service 이름(`dcgm-exporter:9400`)으로 읽으므로 GPU 노드 한 대 구성에 맞는다.
+dcgm-exporter(`deploy/components/dcgm-exporter/`)는 GKE가 설치한 드라이버(`/home/kubernetes/bin/nvidia`)를 붙이고, kubelet pod-resources로 조각을 쓰는 Pod를 알아낸다(`DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name`). 수집 목록 `counters.csv`에는 기본 목록에 없는 `DCGM_FI_DEV_MIG_MODE`가 들어 있고, MIG 노드에서 지원되지 않는 프로파일링 필드(`DCGM_FI_PROF_*`)는 빼 두었다. 서버1은 Service 이름(`dcgm-exporter:9400`)으로 읽으므로 GPU 노드 한 대 구성에 맞는다.
 
 ## 환경 변수
 

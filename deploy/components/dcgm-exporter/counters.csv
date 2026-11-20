@@ -14,4 +14,4 @@ DCGM_FI_DEV_GPU_UTIL,     gauge, GPU utilization (in %).
 DCGM_FI_DEV_MEM_COPY_UTIL, gauge, Memory utilization (in %).
 DCGM_FI_DEV_GPU_TEMP,     gauge, GPU temperature (in C).
 DCGM_FI_DEV_POWER_USAGE,  gauge, Power draw (in W).
-# 프로파일링(DCGM_FI_PROF_*) 필드는 MIG 노드에서 exporter가 "Profiling is not supported"로 건너뛰므로 넣지 않는다 (2026-11-18 GKE 확인).
+# 프로파일링(DCGM_FI_PROF_*) 필드는 MIG 노드에서 exporter가 "Profiling is not supported"로 건너뛰므로 넣지 않는다.
