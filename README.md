@@ -242,7 +242,7 @@ kubectl -n gpu-pool port-forward svc/web 8080:80
 gcloud container node-pools resize a100-mig --cluster gpu-pool --zone asia-northeast3-b --num-nodes 0
 ```
 
-dcgm-exporter(`deploy/components/dcgm-exporter/`)는 GKE가 설치한 드라이버(`/home/kubernetes/bin/nvidia`)를 붙이고, kubelet pod-resources로 조각을 쓰는 Pod를 알아낸다(`DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name`). 수집 목록 `counters.csv`에는 기본 목록에 없는 `DCGM_FI_DEV_MIG_MODE`가 들어 있고, MIG 노드에서 지원되지 않는 프로파일링 필드(`DCGM_FI_PROF_*`)는 빼 두었다. 서버1은 Service 이름(`dcgm-exporter:9400`)으로 읽으므로 GPU 노드 한 대 구성에 맞는다.
+dcgm-exporter(`deploy/components/dcgm-exporter/`)는 GKE가 설치한 드라이버(`/home/kubernetes/bin/nvidia`)를 붙이고, kubelet pod-resources로 조각을 쓰는 Pod를 알아낸다(`DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name`). 수집 목록 `counters.csv`에는 기본 목록에 없는 `DCGM_FI_DEV_MIG_MODE`가 들어 있고, MIG 노드에서 지원되지 않는 프로파일링 필드(`DCGM_FI_PROF_*`)는 빼 두었다. exporter는 시작할 때 읽은 장치 목록을 바꾸지 않으므로, 노드가 부팅될 때 MIG 분할보다 먼저 뜨지 않도록 초기화 컨테이너 `wait-mig`가 `nvidia-smi -L`에 MIG 조각이 보일 때까지 기다린다(최대 10분). 서버1은 Service 이름(`dcgm-exporter:9400`)으로 읽으므로 GPU 노드 한 대 구성에 맞는다.
 
 ## 환경 변수
 

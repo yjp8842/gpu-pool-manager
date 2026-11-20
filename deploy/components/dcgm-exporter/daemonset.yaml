@@ -3,7 +3,9 @@
 #   - 조각을 쓰는 Pod를 알려면 kubelet pod-resources 소켓을 붙이고 DCGM_EXPORTER_KUBERNETES=true로 켠다.
 #     GKE의 장치 ID(nvidia0/gi1 꼴)를 맞추려면 DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE=device-name이어야 한다.
 #   - nvidia.com/gpu를 요청하지 않는다. 요청하면 MIG 조각 하나를 차지한다.
-#   - 실장비에서 /metrics에 빈 조각과 pod 라벨이 나오는지 확인한다.
+#   - exporter는 시작할 때 장치 목록을 한 번 읽고 그 뒤 MIG 조각이 생겨도 다시 읽지 않는다. 노드가 부팅될 때
+#     GKE의 MIG 분할보다 먼저 뜨면 "MIG 켜짐, 조각 0"으로 굳어 장부에 조각이 들어오지 않으므로, 초기화 컨테이너가
+#     MIG가 켜진 GPU에 조각이 보일 때까지 기다렸다가 exporter를 시작한다.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -32,6 +34,36 @@ spec:
       # GPU 노드의 nvidia.com/gpu taint를 넘는다.
       tolerations:
         - operator: Exists
+      # MIG 분할이 끝날 때까지 기다린다. 드라이버는 GKE가 노드에 설치한 것(/usr/local/nvidia)을 쓰고, 장치에 닿으려면
+      # privileged여야 한다. MIG가 꺼진 GPU만 있으면 바로 시작하고, 10분이 지나도 조각이 없으면 그대로 시작한다.
+      initContainers:
+        - name: wait-mig
+          image: nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04
+          command:
+            - /bin/sh
+            - -c
+            - |
+              SMI=/usr/local/nvidia/bin/nvidia-smi
+              for i in $(seq 1 120); do
+                modes=$($SMI --query-gpu=mig.mode.current --format=csv,noheader 2>/dev/null)
+                if [ -n "$modes" ] && ! echo "$modes" | grep -q Enabled; then
+                  echo "MIG가 꺼진 GPU만 있다. 바로 시작한다."; exit 0
+                fi
+                slices=$($SMI -L 2>/dev/null | grep -c 'MIG ')
+                if [ -n "$modes" ] && [ "$slices" -gt 0 ]; then
+                  echo "MIG 조각 ${slices}개 확인. 시작한다."; exit 0
+                fi
+                echo "MIG 조각 대기 ($i/120): mig.mode=[$modes] slices=$slices"; sleep 5
+              done
+              echo "10분을 기다려도 조각이 없다. 그대로 시작한다."; exit 0
+          env:
+            - name: LD_LIBRARY_PATH
+              value: /usr/local/nvidia/lib64
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: nvidia-install-dir-host
+              mountPath: /usr/local/nvidia
       containers:
         - name: dcgm-exporter
           image: nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04
