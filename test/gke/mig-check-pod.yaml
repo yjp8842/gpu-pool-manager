@@ -1,4 +1,5 @@
 # GKE MIG 노드에서 조각 하나를 받는 Pod. 예약 응답과 같은 모양(nvidia.com/gpu 1 + 노드 라벨)이다.
+# GPU 노드의 nvidia.com/gpu taint에 대한 toleration은 적지 않는다. GKE가 확장 자원을 요청한 Pod에 자동으로 붙인다.
 #   kubectl apply -f test/gke/mig-check-pod.yaml
 #   kubectl logs mig-check          # GPU 1장과 MIG 장치 1개가 보여야 한다
 #   kubectl delete pod mig-check
@@ -14,10 +15,6 @@ spec:
   restartPolicy: Never
   nodeSelector:
     cloud.google.com/gke-gpu-partition-size: 1g.5gb
-  tolerations:
-    - key: nvidia.com/gpu
-      operator: Exists
-      effect: NoSchedule
   containers:
     - name: main
       image: nvidia/cuda:12.6.3-base-ubuntu24.04
